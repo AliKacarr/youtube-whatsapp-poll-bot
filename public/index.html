@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>YouTube → WhatsApp Anket Botu</title>
+  <style>.hidden{display:none!important}body{opacity:0}body.is-ready{opacity:1}</style>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div>
+        <p class="eyebrow">OTOMASYON PANELİ</p>
+      </div>
+      <div id="systemBadge" class="badge">Durum yükleniyor…</div>
+    </header>
+
+    <section class="grid">
+      <div class="setup-column">
+      <article class="card" id="whatsappCard">
+        <div class="card-head"><span class="step">01</span><div><h2>WhatsApp bağlantısı</h2><p>QR kodu Bağlı Cihazlar ekranından okutun.</p></div></div>
+        <div id="waStatus" class="status-line">Kontrol ediliyor…</div>
+        <div id="qrWrap" class="qr-wrap hidden"><img id="qrImage" alt="WhatsApp QR kodu"></div>
+        <div class="actions">
+          <button id="connectButton" class="hidden">Bağlantıyı başlat</button>
+          <button id="logoutButton" class="secondary hidden">Bağlantıyı durdur</button>
+        </div>
+        <p id="waNextStep" class="step-note"></p>
+      </article>
+
+      <article class="card" id="scheduleCard">
+        <div class="card-head"><span class="step">03</span><div><h2>Kontrol saatleri</h2><p>YouTube kanalı her dakika, seçtiğiniz saatler arasında kontrol edilir.</p></div></div>
+        <div id="scheduleSettings">
+          <div class="schedule-grid">
+            <div><label for="startHour">Başlangıç</label><select id="startHour"></select></div>
+            <div><label for="endHour">Bitiş</label><select id="endHour"></select></div>
+          </div>
+          <button id="saveScheduleButton" class="secondary full">Saat aralığını kaydet</button>
+          <p class="micro">Saatler Türkiye saatine (GMT+3) göre uygulanır; bitiş saati başlangıçtan küçükse kontrol gece yarısını geçerek sürer.</p>
+        </div>
+      </article>
+      </div>
+
+      <div class="setup-column">
+      <article class="card" id="channelCard">
+        <div class="card-head"><span class="step">02</span><div><h2>YouTube kanalı</h2><p>URL, @handle veya UC… kanal ID girebilirsiniz.</p></div></div>
+        <div id="selectedChannel" class="selected-box channel-box hidden"></div>
+        <button id="changeChannelButton" class="secondary full hidden">Kanalı değiştir</button>
+        <div id="channelEditor" class="hidden">
+          <label for="channelInput">Kanal</label>
+          <input id="channelInput" placeholder="örnek: https://www.youtube.com/@hisarkapisi">
+          <button id="saveChannelButton" class="full" disabled>Bu kanalı kaydet</button>
+        </div>
+      </article>
+
+      <article class="card" id="groupCard">
+        <div class="card-head"><span class="step">04</span><div><h2>Hedef grup</h2><p>Anketlerin gönderileceği WhatsApp grubunu seçin.</p></div></div>
+        <div id="selectedGroup" class="selected-box">Henüz grup seçilmedi.</div>
+        <button id="openGroupsButton" class="secondary full">Grup seç</button>
+        <div class="delivery-summary">
+          <span>Gönderim özeti</span>
+          <p>Anket başlığı: Video bağlantısı</p>
+          <p>Seçenekler: İzledim ve İzlemedim</p>
+        </div>
+      </article>
+      </div>
+
+      <article class="card" id="testCard">
+        <div class="card-head"><span class="step">05</span><div><h2>Test ve webhook</h2><p>Canlıya geçmeden önce bir test anketi gönderebilirsiniz.</p></div></div>
+        <label for="testUrl">Test video URL'si</label>
+        <input id="testUrl" value="https://www.youtube.com/watch?v=test">
+        <button id="testPollButton" class="secondary full">Test anketi gönder</button>
+      </article>
+
+      <article id="readyPanel" class="card ready-panel hidden" aria-live="polite">
+      <span class="step">06</span>
+      <div>
+        <h2>Otomasyon hazır</h2>
+        <p>Yeni video bulunduğunda anket otomatik gönderilir.</p>
+        <dl class="ready-summary">
+          <div><dt>Hedef grup</dt><dd id="readyGroup"></dd></div>
+          <div><dt>Kontrol planı</dt><dd id="readySchedule"></dd></div>
+          <div><dt>Son kontrol</dt><dd id="readyLastChecked"></dd></div>
+        </dl>
+      </div>
+      </article>
+    </section>
+
+    <section class="card history">
+      <div class="card-head"><span class="step">07</span><div><h2>Son video olayları</h2></div></div>
+      <div class="table-wrap"><table><thead><tr><th>Video</th><th>Durum</th><th>Alınma</th><th>Hata</th></tr></thead><tbody id="eventsBody"><tr><td colspan="4">Henüz olay yok.</td></tr></tbody></table></div>
+      <div id="eventsPager" class="pager hidden">
+        <button id="previousEventsButton" class="secondary">Önceki</button>
+        <span id="eventsPageInfo"></span>
+        <button id="nextEventsButton" class="secondary">Sonraki</button>
+      </div>
+    </section>
+    <div id="toast" role="status"></div>
+  </main>
+  <div id="groupModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="groupModalTitle">
+    <div class="modal-card">
+      <div class="modal-head"><div><p class="eyebrow">WHATSAPP GRUPLARI</p><h2 id="groupModalTitle">Hedef grubu seçin</h2></div><button id="closeGroupsButton" class="icon-button" aria-label="Kapat">×</button></div>
+      <div id="groupList" class="group-list"><p class="micro">Gruplar yükleniyor…</p></div>
+    </div>
+  </div>
+  <script src="/app.js" defer></script>
+</body>
+</html>

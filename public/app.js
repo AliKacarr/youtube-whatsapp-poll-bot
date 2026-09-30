@@ -36,8 +36,9 @@ function toast(message, error = false) {
 function renderStatus(data) {
   currentSettings = data.settings;
   const wa = data.whatsapp;
-  $('#systemBadge').textContent = wa.status === 'READY' ? '● Sistem hazır' : `● ${wa.status}`;
-  $('#waStatus').textContent = wa.status === 'READY' ? `${wa.userInfo?.name || 'WhatsApp'} bağlı` : wa.lastError || wa.status;
+  const whatsappStatus = formatWhatsappStatus(wa.status);
+  $('#systemBadge').textContent = wa.status === 'READY' ? '\u25cf Sistem haz\u0131r' : `\u25cf ${whatsappStatus}`;
+  $('#waStatus').textContent = wa.status === 'READY' ? `${wa.userInfo?.name || 'WhatsApp'} ba\u011fl\u0131` : wa.lastError ? formatErrorMessage(wa.lastError) : whatsappStatus;
   $('#waNextStep').textContent = wa.status === 'READY'
     ? 'Bağlantı tamamlandı. Sıradaki adım: YouTube kanalını seçin.'
     : 'QR kodunu okuttuktan sonra YouTube kanalını seçebilirsiniz.';
@@ -109,7 +110,7 @@ async function loadGroups() {
 async function loadEvents() {
   try {
     const { events, total } = await api(`/api/events?page=${eventsPage}`);
-    $('#eventsBody').innerHTML = events.length ? events.map(event => `<tr><td><a href="${escapeHtml(event.videoUrl)}" target="_blank" rel="noreferrer">${escapeHtml(event.title || event.videoId)}</a></td><td>${formatEventStatus(event.status)}</td><td>${event.receivedAt ? new Date(event.receivedAt).toLocaleString('tr-TR') : '—'}</td><td>${escapeHtml(event.lastError || '—')}</td></tr>`).join('') : '<tr><td colspan="4">Henüz olay yok.</td></tr>';
+    $('#eventsBody').innerHTML = events.length ? events.map(event => `<tr><td><a href="${escapeHtml(event.videoUrl)}" target="_blank" rel="noreferrer">${escapeHtml(event.title || event.videoId)}</a></td><td>${formatEventStatus(event.status)}</td><td>${event.receivedAt ? new Date(event.receivedAt).toLocaleString('tr-TR') : '—'}</td><td>${escapeHtml(formatErrorMessage(event.lastError))}</td></tr>`).join('') : '<tr><td colspan="4">Henüz olay yok.</td></tr>';
     const first = total ? eventsPage * 10 + 1 : 0;
     const last = eventsPage * 10 + events.length;
     $('#eventsPager').classList.toggle('hidden', total <= 10);
@@ -158,3 +159,30 @@ refreshStatus();
 loadEvents();
 setInterval(refreshStatus, 3000);
 setInterval(loadEvents, 15000);
+
+function formatWhatsappStatus(status) {
+  const labels = {
+    DISCONNECTED: 'Ba\u011flant\u0131 kesildi',
+    INITIALIZING: 'Ba\u011flant\u0131 haz\u0131rlan\u0131yor',
+    WAITING_FOR_QR: 'QR kodu bekleniyor',
+    READY: 'Ba\u011fl\u0131',
+    LOGGED_OUT: 'Oturum kapat\u0131ld\u0131',
+    ERROR: 'Ba\u011flant\u0131 hatas\u0131'
+  };
+  return labels[status] || 'Durum bilinmiyor';
+}
+function formatErrorMessage(message) {
+  if (!message) return '\u2014';
+  const translations = [
+    [/Connection Closed/gi, 'Ba\u011flant\u0131 kapat\u0131ld\u0131'],
+    [/Connection Failure/gi, 'Ba\u011flant\u0131 ba\u015far\u0131s\u0131z oldu'],
+    [/Connection Lost/gi, 'Ba\u011flant\u0131 kaybedildi'],
+    [/Connection Replaced/gi, 'Ba\u011flant\u0131 ba\u015fka bir oturum taraf\u0131ndan de\u011fi\u015ftirildi'],
+    [/Timed Out/gi, 'Zaman a\u015f\u0131m\u0131na u\u011frad\u0131'],
+    [/Logged Out/gi, 'Oturum kapat\u0131ld\u0131'],
+    [/Bad MAC/gi, 'Oturum do\u011frulama hatas\u0131'],
+    [/YouTube uploads request failed/gi, 'YouTube video listesi al\u0131namad\u0131'],
+    [/Invalid YouTube channel ID/gi, 'Ge\u00e7ersiz YouTube kanal kimli\u011fi']
+  ];
+  return translations.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), String(message));
+}

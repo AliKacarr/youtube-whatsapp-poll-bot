@@ -45,7 +45,7 @@ async function resolveChannel(input) {
 }
 
 async function fetchLatestUploads(channelId, maxResults = 10) {
-  if (!CHANNEL_ID_PATTERN.test(channelId || '')) throw new Error('Invalid YouTube channel ID.');
+  if (!CHANNEL_ID_PATTERN.test(channelId || '')) throw new Error('Ge\u00e7ersiz YouTube kanal kimli\u011fi.');
   const key = requireEnv('YOUTUBE_API_KEY');
   const uploadsPlaylistId = 'UU' + channelId.slice(2);
   const url = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
@@ -56,7 +56,7 @@ async function fetchLatestUploads(channelId, maxResults = 10) {
 
   const response = await fetch(url);
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body?.error?.message || 'YouTube uploads request failed (' + response.status + ')');
+  if (!response.ok) throw new Error(body?.error?.message || 'YouTube video listesi al\u0131namad\u0131 (' + response.status + ')');
 
   return (body.items || [])
     .filter(item => !item.status?.privacyStatus || item.status.privacyStatus === 'public')

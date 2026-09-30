@@ -83,7 +83,11 @@ function renderStatus(data) {
   setLocked('#groupCard', !whatsappReady || !hasChannel, ['#openGroupsButton'], !whatsappReady ? 'Önce WhatsApp bağlantısını tamamlayın.' : 'Önce YouTube kanalını kaydedin.');
   const canTest = whatsappReady && hasChannel && hasGroup;
   setLocked('#testCard', !canTest, ['#testUrl', '#testPollButton'], 'Test için önceki üç adımı tamamlayın.');
-  $('#readyPanel').classList.toggle('hidden', !canTest);
+  $('#readyPanel').classList.toggle('is-ready', canTest);
+  $('#readyTitle').textContent = canTest ? 'Otomasyon hazır' : 'Kurulum devam ediyor';
+  $('#readyDescription').textContent = canTest
+    ? 'Yeni video bulunduğunda anket otomatik gönderilir.'
+    : 'Otomasyonu hazır hale getirmek için önceki adımları tamamlayın.';
 }
 
 async function refreshStatus() {

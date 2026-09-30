@@ -1,7 +1,7 @@
 :root { color-scheme: dark; --bg:#090b10; --card:#11151d; --line:#242a36; --text:#f4f6fb; --muted:#939cad; --red:#ff435d; --cyan:#68e1d4; }
 * { box-sizing:border-box; }
 body { margin:0; min-height:100vh; background:radial-gradient(circle at 85% 0,#20253a 0,transparent 33%),var(--bg); color:var(--text); font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,sans-serif; transition:opacity .22s ease-out; }
-.shell { width:min(1120px,calc(100% - 32px)); margin:0 auto; padding:58px 0 80px; }
+.shell { width:min(1120px,calc(100% - 32px)); margin:0 auto; padding:40px 0 20px; }
 header { display:flex; justify-content:space-between; align-items:center; gap:28px; margin-bottom:24px; }
 .eyebrow { color:var(--cyan); font-size:12px; font-weight:800; letter-spacing:.18em; }
 h1 { margin:10px 0 14px; font-size:clamp(38px,6vw,68px); line-height:1.02; letter-spacing:-.055em; max-width:800px; }
@@ -53,7 +53,8 @@ code { display:block; overflow:auto; padding:10px; background:#090c12; border-ra
 .schedule-grid > div { min-width:0; }
 .schedule-grid span { display:block; margin:5px 0 0; color:var(--muted); font-size:12px; }
 .schedule-grid label { margin-top:0; }
-.ready-panel { display:flex; align-items:flex-start; gap:13px; padding:21px 24px; border:1px solid rgba(104,225,212,.38); border-radius:20px; background:linear-gradient(110deg,rgba(104,225,212,.13),rgba(17,21,29,.95)); }
+.ready-panel { display:flex; align-items:flex-start; gap:13px; padding:21px 24px; border-radius:20px; }
+.ready-panel.is-ready { border-color:rgba(104,225,212,.38); background:linear-gradient(110deg,rgba(104,225,212,.13),rgba(17,21,29,.95)); }
 .ready-panel .step { background:var(--cyan); color:#081011; }
 .ready-panel h2 { margin:3px 0 4px; font-size:19px; }
 .ready-panel p { margin:0; color:#c7d1dc; }
@@ -83,4 +84,11 @@ td a { color:var(--cyan); }
 .group-row { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 13px; border:1px solid var(--line); border-radius:12px; background:#0b0f16; }
 .group-row strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .group-row button { flex:0 0 auto; min-height:38px; }
+.site-footer { display:flex; align-items:center; justify-content:space-between; gap:15px; margin-top:25px; padding:10px 4px 0; border-top:1px solid var(--line); color:var(--muted); }
+.site-footer p { margin:0; }
+.social-icons { display:flex; align-items:center; gap:10px; }
+.social-icons a { display:grid; place-items:center; width:42px; height:42px; border:1px solid var(--line); border-radius:50%; color:#c8cfda; font-size:19px; text-decoration:none; transition:border-color .2s,color .2s,background .2s,transform .2s; }
+.social-icons a:hover { border-color:var(--cyan); background:rgba(104,225,212,.08); color:var(--cyan); transform:translateY(-2px); }
+.social-icons a:focus-visible { outline:2px solid var(--cyan); outline-offset:3px; }
 @media(max-width:760px) { .grid{display:flex;flex-direction:column}.setup-column{display:contents}.grid .card{width:100%;min-height:0}#whatsappCard{order:1}#channelCard{order:2}#scheduleCard{order:3}#groupCard{order:4}#testCard{order:5}#readyPanel{order:6} header{display:block}.badge{display:inline-block;margin-top:12px}.shell{padding-top:30px}.schedule-grid{grid-template-columns:1fr} }
+@media(max-width:600px) { .site-footer{flex-direction:column;text-align:center}.social-icons{justify-content:center} }

@@ -5,13 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>YouTube → WhatsApp Anket Botu</title>
   <style>.hidden{display:none!important}body{opacity:0}body.is-ready{opacity:1}</style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <main class="shell">
     <header>
       <div>
-        <p class="eyebrow">OTOMASYON PANELİ</p>
+        <p class="eyebrow">YOUTUBE → WHATSAPP ANKET BOTU</p>
       </div>
       <div id="systemBadge" class="badge">Durum yükleniyor…</div>
     </header>
@@ -73,11 +74,11 @@
         <button id="testPollButton" class="secondary full">Test anketi gönder</button>
       </article>
 
-      <article id="readyPanel" class="card ready-panel hidden" aria-live="polite">
+      <article id="readyPanel" class="card ready-panel" aria-live="polite">
       <span class="step">06</span>
       <div>
-        <h2>Otomasyon hazır</h2>
-        <p>Yeni video bulunduğunda anket otomatik gönderilir.</p>
+        <h2 id="readyTitle">Kurulum devam ediyor</h2>
+        <p id="readyDescription">Otomasyonu hazır hale getirmek için önceki adımları tamamlayın.</p>
         <dl class="ready-summary">
           <div><dt>Hedef grup</dt><dd id="readyGroup"></dd></div>
           <div><dt>Kontrol planı</dt><dd id="readySchedule"></dd></div>
@@ -96,6 +97,15 @@
         <button id="nextEventsButton" class="secondary">Sonraki</button>
       </div>
     </section>
+    <footer class="site-footer">
+      <p>Çatı Katı Elazığ İlim ve Kültür Derneği © Tüm hakları saklıdır.</p>
+      <div class="social-icons" aria-label="Sosyal medya bağlantıları">
+        <a href="https://www.instagram.com/catikatimelazig/" target="_blank" rel="noopener noreferrer" aria-label="Instagram"><i class="fab fa-instagram" aria-hidden="true"></i></a>
+        <a href="https://www.youtube.com/c/%C3%87atikatim" target="_blank" rel="noopener noreferrer" aria-label="YouTube"><i class="fab fa-youtube" aria-hidden="true"></i></a>
+        <a href="https://open.spotify.com/show/1QIENVd5g588MS1eF1ZcKi" target="_blank" rel="noopener noreferrer" aria-label="Spotify"><i class="fab fa-spotify" aria-hidden="true"></i></a>
+        <a href="https://wa.me/905539275523" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp"><i class="fab fa-whatsapp" aria-hidden="true"></i></a>
+      </div>
+    </footer>
     <div id="toast" role="status"></div>
   </main>
   <div id="groupModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="groupModalTitle">

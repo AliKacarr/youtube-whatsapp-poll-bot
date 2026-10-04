@@ -32,7 +32,7 @@ for (const stream of [process.stdout, process.stderr]) {
 const path = require('path');
 const express = require('express');
 const schedule = require('node-schedule');
-const { connectDatabase, closeDatabase, db, getSettings, updateSettings } = require('./db');
+const { connectDatabase, closeDatabase, db, getSettings, updateSettings, resetSettings } = require('./db');
 const { getConfigKey } = require('./config');
 const youtube = require('./youtube');
 const youtubeMonitor = require('./youtube-monitor');
@@ -62,11 +62,42 @@ app.post('/api/whatsapp/start', async (req, res, next) => {
 });
 
 app.post('/api/whatsapp/logout', async (req, res, next) => {
-  try { await whatsapp.logout(); res.json({ ok: true, whatsapp: whatsapp.getState() }); } catch (error) { next(error); }
+  delivery.pause();
+  youtubeMonitor.pause();
+  try {
+    await whatsapp.logout();
+    await youtubeMonitor.waitForIdle();
+    const settings = await resetSettings();
+    await delivery.cancelOutstanding();
+    res.json({ ok: true, whatsapp: whatsapp.getState(), settings });
+  } catch (error) { next(error); }
+  finally {
+    youtubeMonitor.resume();
+    delivery.resume();
+  }
 });
 
 app.get('/api/groups', async (req, res, next) => {
   try { const groups = await whatsapp.groups(); res.json({ ok: true, groups }); } catch (error) { next(error); }
+});
+
+app.get('/api/channel-thumbnail', async (req, res, next) => {
+  try {
+    const settings = await getSettings();
+    if (!settings?.youtubeChannelThumbnail) return res.sendStatus(404);
+    const thumbnailUrl = new URL(settings.youtubeChannelThumbnail);
+    const allowedHosts = ['yt3.ggpht.com', 'yt3.googleusercontent.com'];
+    if (thumbnailUrl.protocol !== 'https:' || !allowedHosts.includes(thumbnailUrl.hostname)) return res.sendStatus(404);
+    const response = await fetch(thumbnailUrl, { signal: AbortSignal.timeout(10000) });
+    if (!response.ok) throw new Error(`Kanal görseli alınamadı (${response.status})`);
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.startsWith('image/')) throw new Error('Kanal görseli geçerli bir resim değil.');
+    const image = Buffer.from(await response.arrayBuffer());
+    if (image.length > 5 * 1024 * 1024) throw new Error('Kanal görseli çok büyük.');
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.send(image);
+  } catch (error) { next(error); }
 });
 
 app.post('/api/youtube/resolve', async (req, res, next) => {
@@ -75,7 +106,9 @@ app.post('/api/youtube/resolve', async (req, res, next) => {
 
 app.put('/api/settings/channel', async (req, res, next) => {
   try {
+    const settings = await getSettings();
     if (whatsapp.getState().status !== 'READY') throw new Error('Önce WhatsApp bağlantısını tamamlayın.');
+    if (!settings?.targetGroupId) throw new Error('Önce hedef WhatsApp grubunu seçin.');
     const channel = await youtube.resolveChannel(req.body.input);
     const monitor = await youtubeMonitor.configureChannel(channel);
     res.json({ ok: true, channel, monitor });
@@ -84,9 +117,7 @@ app.put('/api/settings/channel', async (req, res, next) => {
 
 app.put('/api/settings/group', async (req, res, next) => {
   try {
-    const settings = await getSettings();
     if (whatsapp.getState().status !== 'READY') throw new Error('Önce WhatsApp bağlantısını tamamlayın.');
-    if (!settings?.youtubeChannelId) throw new Error('Önce YouTube kanalını kaydedin.');
     const groupId = String(req.body.groupId || '').trim();
     if (!groupId.endsWith('@g.us')) throw new Error('Geçerli bir WhatsApp grup JID seçin.');
     const groups = await whatsapp.groups();
@@ -96,22 +127,39 @@ app.put('/api/settings/group', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+app.put('/api/settings/delivery', async (req, res, next) => {
+  try {
+    const settings = await getSettings();
+    if (whatsapp.getState().status !== 'READY') throw new Error('Önce WhatsApp bağlantısını tamamlayın.');
+    if (!settings?.targetGroupId) throw new Error('Önce hedef WhatsApp grubunu seçin.');
+    const deliveryType = String(req.body.deliveryType || '').trim();
+    if (!['poll', 'message'].includes(deliveryType)) throw new Error('Gönderim biçimi anket veya mesaj olmalıdır.');
+    res.json({ ok: true, settings: await updateSettings({ deliveryType }) });
+  } catch (error) { next(error); }
+});
+
 app.put('/api/settings/monitor', async (req, res, next) => {
   try {
     const settings = await getSettings();
     if (whatsapp.getState().status !== 'READY') throw new Error('Önce WhatsApp bağlantısını tamamlayın.');
-    if (!settings?.youtubeChannelId) throw new Error('Önce YouTube kanalını kaydedin.');
+    if (!settings?.targetGroupId) throw new Error('Önce hedef WhatsApp grubunu seçin.');
     const schedule = youtubeMonitor.normalizeSchedule(req.body);
-    res.json({ ok: true, settings: await updateSettings({ 'monitor.schedule': schedule }) });
+    const deliveryType = String(req.body.deliveryType || '').trim();
+    if (!['poll', 'message'].includes(deliveryType)) throw new Error('Gönderim biçimi anket veya mesaj olmalıdır.');
+    res.json({ ok: true, settings: await updateSettings({ 'monitor.schedule': schedule, deliveryType }) });
   } catch (error) { next(error); }
 });
 
-app.post('/api/test-poll', async (req, res, next) => {
+app.post('/api/test-delivery', async (req, res, next) => {
   try {
     const settings = await getSettings();
     if (whatsapp.getState().status !== 'READY' || !settings?.youtubeChannelId || !settings?.targetGroupId) throw new Error('Test için WhatsApp bağlantısı, YouTube kanalı ve hedef grup tamamlanmalıdır.');
     const videoUrl = String(req.body.videoUrl || 'https://www.youtube.com/watch?v=test').trim();
-    res.json({ ok: true, result: await whatsapp.sendVideoPoll({ videoUrl }) });
+    const deliveryType = settings.deliveryType === 'message' ? 'message' : 'poll';
+    const result = deliveryType === 'message'
+      ? await whatsapp.sendVideoMessage({ title: req.body.title || 'Test video başlığı', videoUrl })
+      : await whatsapp.sendVideoPoll({ videoUrl });
+    res.json({ ok: true, deliveryType, result });
   } catch (error) { next(error); }
 });
 

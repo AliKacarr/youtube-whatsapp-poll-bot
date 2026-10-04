@@ -3,7 +3,9 @@ const whatsapp = require('./whatsapp');
 const { getConfigKey } = require('./config');
 
 let running = false;
+let paused = false;
 let timer;
+const idleWaiters = new Set();
 
 async function recoverInterrupted() {
   await db().collection('video_events').updateMany(
@@ -13,7 +15,7 @@ async function recoverInterrupted() {
 }
 
 async function processNext() {
-  if (running) return;
+  if (running || paused) return;
   running = true;
   try {
     const event = await db().collection('video_events').findOneAndUpdate(
@@ -22,14 +24,16 @@ async function processNext() {
       { sort: { receivedAt: 1 }, returnDocument: 'after' }
     );
     if (!event) return;
-    const settings = await getSettings();
-    if (!settings?.targetGroupId) throw new Error('Hedef WhatsApp grubu seçilmedi.');
-
     try {
-      const sent = await whatsapp.sendVideoPoll({ groupId: settings.targetGroupId, videoUrl: event.videoUrl });
+      const settings = await getSettings();
+      if (!settings?.targetGroupId) throw new Error('Hedef WhatsApp grubu seçilmedi.');
+      const deliveryType = settings.deliveryType === 'message' ? 'message' : 'poll';
+      const sent = deliveryType === 'message'
+        ? await whatsapp.sendVideoMessage({ groupId: settings.targetGroupId, title: event.title, videoUrl: event.videoUrl })
+        : await whatsapp.sendVideoPoll({ groupId: settings.targetGroupId, videoUrl: event.videoUrl });
       await db().collection('video_events').updateOne(
         { _id: event._id },
-        { $set: { status: 'sent', sentAt: new Date(), targetGroupId: sent.groupId, pollMessageId: sent.messageId }, $unset: { lastError: '', nextAttemptAt: '', processingStartedAt: '' } }
+        { $set: { status: 'sent', sentAt: new Date(), targetGroupId: sent.groupId, messageId: sent.messageId, deliveryType }, $unset: { lastError: '', nextAttemptAt: '', processingStartedAt: '' } }
       );
     } catch (error) {
       const attemptCount = (event.attemptCount || 0) + 1;
@@ -42,7 +46,33 @@ async function processNext() {
     }
   } finally {
     running = false;
+    for (const resolve of idleWaiters) resolve();
+    idleWaiters.clear();
   }
+}
+
+function pause() {
+  paused = true;
+}
+
+function resume() {
+  paused = false;
+}
+
+async function waitForIdle() {
+  if (!running) return;
+  await new Promise(resolve => idleWaiters.add(resolve));
+}
+
+async function cancelOutstanding(reason = 'settings-reset') {
+  await waitForIdle();
+  return db().collection('video_events').updateMany(
+    { configKey: getConfigKey(), status: { $in: ['pending', 'failed', 'sending'] } },
+    {
+      $set: { status: 'cancelled', reason, cancelledAt: new Date() },
+      $unset: { nextAttemptAt: '', processingStartedAt: '', lastError: '' }
+    }
+  );
 }
 
 async function start() {
@@ -56,4 +86,4 @@ function kick() {
   setImmediate(() => processNext().catch(error => console.error('Teslimat worker hatası:', error)));
 }
 
-module.exports = { start, kick, processNext };
+module.exports = { start, kick, processNext, pause, resume, cancelOutstanding };

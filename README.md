@@ -1,6 +1,6 @@
-# YouTube → WhatsApp Anket Botu
+# YouTube → WhatsApp Gönderim Botu
 
-YouTube kanalında yayınlanan yeni videoları otomatik olarak tespit eden ve seçilen WhatsApp grubuna **İzledim / İzlemedim** seçenekli anket gönderen, web paneliyle yönetilebilen Node.js uygulaması.
+YouTube kanalında yayınlanan yeni videoları otomatik olarak tespit eden ve seçilen WhatsApp grubuna anket veya başlık-bağlantı biçiminde mesaj gönderen, web paneliyle yönetilebilen Node.js uygulaması.
 
 > [!IMPORTANT]
 > Bu proje WhatsApp'ın resmî Business API'sini değil, Baileys üzerinden bağlı cihaz oturumunu kullanır. Kullanım sorumluluğu size aittir; WhatsApp kullanım koşullarını ve mesaj gönderdiğiniz grubun kurallarını gözetin.
@@ -9,7 +9,7 @@ YouTube kanalında yayınlanan yeni videoları otomatik olarak tespit eden ve se
 
 - YouTube kanalını URL, `@handle`, kullanıcı adı veya kanal kimliğiyle tanımlama
 - Kanalın yüklemeler listesini Türkiye saatine göre seçilen saat aralığında her dakika kontrol etme
-- Yeni video için WhatsApp grubuna tek seçimli anket gönderme
+- Yeni video için WhatsApp grubuna tek seçimli anket veya video başlığı ve bağlantısından oluşan mesaj gönderme
 - QR kodla WhatsApp bağlantısı ve bağlı grupları panelden listeleme
 - WhatsApp oturumunu MongoDB'de saklama
 - Aynı videonun tekrar gönderilmesini önleyen benzersiz MongoDB indeksi
@@ -23,13 +23,13 @@ YouTube kanalında yayınlanan yeni videoları otomatik olarak tespit eden ve se
 ## Çalışma akışı
 
 1. Yönetim panelinden WhatsApp bağlantısı başlatılır ve QR kod okutulur.
-2. İzlenecek YouTube kanalı seçilir.
-3. Kontrolün çalışacağı başlangıç ve bitiş saatleri belirlenir.
-4. Hedef WhatsApp grubu seçilir.
-5. İsteğe bağlı olarak test anketi gönderilir.
+2. Hedef WhatsApp grubu seçilir.
+3. Kontrolün çalışacağı saatler ile anket veya mesaj gönderim biçimi belirlenir.
+4. İzlenecek YouTube kanalı seçilir.
+5. İsteğe bağlı olarak test gönderimi yapılır.
 6. Uygulama, belirlenen saat aralığında kanalın son videolarını her dakika kontrol eder.
 7. Yeni bir video bulunduğunda olay MongoDB kuyruğuna eklenir.
-8. Video bağlantısı anket başlığı olacak şekilde hedef gruba gönderilir.
+8. Video seçilen biçime göre hedef gruba gönderilir.
 
 Kanal ilk kez kaydedildiğinde mevcut son videolar başlangıç kaydı olarak işaretlenir ve gruba gönderilmez. Böylece yalnızca yapılandırmadan sonra yayınlanan yeni videolar otomasyona dahil edilir.
 
@@ -147,22 +147,29 @@ Uygulama kanal bilgilerini çözümlemek için `channels.list`, son yüklemeleri
 Paneldeki kurulum sırası şöyledir:
 
 1. **WhatsApp bağlantısı:** QR kod üretin ve bağlı cihaz olarak okutun.
-2. **YouTube kanalı:** Kanal URL'si, `@handle` veya kanal kimliği girin.
-3. **Kontrol saatleri:** Başlangıç ve bitiş saatini Türkiye saatine göre seçin.
-4. **Hedef grup:** Bağlı WhatsApp hesabındaki gruplardan birini seçin.
-5. **Test anketi:** Seçilen gruba test gönderimi yapın.
+2. **Hedef grup:** Bağlı WhatsApp hesabındaki gruplardan birini seçin.
+3. **Kontrol ve gönderim:** Başlangıç/bitiş saatlerini ve anket veya mesaj biçimini seçin.
+4. **YouTube kanalı:** Kanal URL'si, `@handle` veya kanal kimliği girin.
+5. **Test gönderimi:** Seçilen biçimde test gönderimi yapın.
 6. **Otomasyon durumu:** Hedef grup, kontrol planı ve son kontrol zamanını izleyin.
 7. **Son video olayları:** Kuyruk ve teslimat durumlarını görüntüleyin.
 
 Gece yarısını aşan saat aralıkları desteklenir. Örneğin `22:00–03:00`, aynı gün 22.00'den gece yarısına ve ertesi gün 03.59'a kadar aktif kabul edilir.
 
-## Anket biçimi
+## Gönderim biçimleri
 
 Yeni bir video tespit edildiğinde gönderilen WhatsApp anketi:
 
 - **Başlık:** YouTube video bağlantısı
 - **Seçenekler:** `İzledim`, `İzlemedim`
 - **Seçilebilir seçenek sayısı:** 1
+
+Mesaj biçimi seçildiğinde video başlığı ve bağlantısı şu şekilde gönderilir:
+
+```text
+Hayat Değiştiren İnce Düşünce
+https://youtube.com/shorts/IhQuNsLao-k
+```
 
 ## Teslimat güvenilirliği
 
@@ -185,6 +192,7 @@ Uygulama çalışırken kuyruk yaklaşık 15 saniyede bir işlenir. Beş dakikad
 | `sending` | WhatsApp'a gönderiliyor |
 | `sent` | Başarıyla gönderildi |
 | `failed` | Gönderilemedi; yeniden deneme zamanı bekleniyor |
+| `cancelled` | WhatsApp bağlantısı ve ayarlar sıfırlanırken iptal edildi |
 
 ## MongoDB koleksiyonları
 
@@ -242,7 +250,8 @@ WhatsApp oturumu MongoDB'de tutulduğu için normal yeniden başlatmalarda yerel
 | `PUT` | `/api/settings/channel` | İzlenecek kanalı kaydeder |
 | `PUT` | `/api/settings/group` | Hedef WhatsApp grubunu kaydeder |
 | `PUT` | `/api/settings/monitor` | Kontrol saatlerini günceller |
-| `POST` | `/api/test-poll` | Test anketi gönderir |
+| `PUT` | `/api/settings/delivery` | Anket veya mesaj gönderim biçimini kaydeder |
+| `POST` | `/api/test-delivery` | Seçili biçimde test gönderimi yapar |
 | `GET` | `/api/events?page=0` | Sayfalanmış video olaylarını listeler |
 
 ## Proje yapısı

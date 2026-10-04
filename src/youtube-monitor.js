@@ -3,6 +3,9 @@ const { fetchLatestUploads } = require('./youtube');
 const { getConfigKey } = require('./config');
 
 const DEFAULT_SCHEDULE = Object.freeze({ intervalMinutes: 1, startHour: 0, endHour: 23 });
+let paused = false;
+let activeRuns = 0;
+const idleWaiters = new Set();
 
 function normalizeSchedule(schedule = {}) {
   const intervalMinutes = DEFAULT_SCHEDULE.intervalMinutes;
@@ -77,9 +80,7 @@ async function seedExistingVideos(channelId) {
 
 async function configureChannel(channel) {
   const current = await getSettings();
-  const alreadyMonitoring = current?.youtubeChannelId === channel.id && (
-    current?.monitor?.enabled === true || current?.subscription?.status === 'active'
-  );
+  const alreadyMonitoring = current?.youtubeChannelId === channel.id;
 
   let baselineCount = 0;
   if (!alreadyMonitoring) baselineCount = await seedExistingVideos(channel.id);
@@ -93,38 +94,60 @@ async function configureChannel(channel) {
     youtubeChannelTitle: channel.title,
     youtubeChannelThumbnail: channel.thumbnail || null,
     youtubeInput: channel.input,
-    monitor: { enabled: true, startedAt, lastError: null, schedule: normalizeSchedule(current?.monitor?.schedule) }
+    monitor: { startedAt, lastError: null, schedule: normalizeSchedule(current?.monitor?.schedule) }
   });
 
-  return { enabled: true, schedule: normalizeSchedule(current?.monitor?.schedule), baselineCount };
+  return { schedule: normalizeSchedule(current?.monitor?.schedule), baselineCount };
 }
 
 async function reconcileCurrentChannel() {
-  const settings = await getSettings();
-  if (!settings?.youtubeChannelId || settings?.monitor?.enabled === false) return null;
-  const schedule = normalizeSchedule(settings.monitor?.schedule);
-  const now = new Date();
-  if (!isWithinHours(schedule, now)) return { skipped: 'outside-hours' };
-  if (!isDue(schedule, settings.monitor?.lastCheckedAt, now)) return { skipped: 'not-due' };
-
+  if (paused) return { skipped: 'paused' };
+  activeRuns += 1;
   try {
-    const entries = await fetchLatestUploads(settings.youtubeChannelId);
-    const inserted = await enqueueEntries(entries);
-    await updateSettings({
-      'monitor.enabled': true,
-      'monitor.schedule': schedule,
-      'monitor.lastCheckedAt': new Date(),
-      'monitor.lastCheckedCount': entries.length,
-      'monitor.lastError': null
-    });
-    return { checked: entries.length, inserted, source: 'youtube-data-api' };
-  } catch (error) {
-    await updateSettings({
-      'monitor.lastCheckedAt': new Date(),
-      'monitor.lastError': error.message
-    });
-    throw error;
+    const settings = await getSettings();
+    if (!settings?.youtubeChannelId) return null;
+    const schedule = normalizeSchedule(settings.monitor?.schedule);
+    const now = new Date();
+    if (!isWithinHours(schedule, now)) return { skipped: 'outside-hours' };
+    if (!isDue(schedule, settings.monitor?.lastCheckedAt, now)) return { skipped: 'not-due' };
+
+    try {
+      const entries = await fetchLatestUploads(settings.youtubeChannelId);
+      const inserted = await enqueueEntries(entries);
+      await updateSettings({
+        'monitor.schedule': schedule,
+        'monitor.lastCheckedAt': new Date(),
+        'monitor.lastCheckedCount': entries.length,
+        'monitor.lastError': null
+      });
+      return { checked: entries.length, inserted, source: 'youtube-data-api' };
+    } catch (error) {
+      await updateSettings({
+        'monitor.lastCheckedAt': new Date(),
+        'monitor.lastError': error.message
+      });
+      throw error;
+    }
+  } finally {
+    activeRuns -= 1;
+    if (activeRuns === 0) {
+      for (const resolve of idleWaiters) resolve();
+      idleWaiters.clear();
+    }
   }
 }
 
-module.exports = { configureChannel, reconcileCurrentChannel, normalizeSchedule, isWithinHours, isDue };
+function pause() {
+  paused = true;
+}
+
+function resume() {
+  paused = false;
+}
+
+async function waitForIdle() {
+  if (activeRuns === 0) return;
+  await new Promise(resolve => idleWaiters.add(resolve));
+}
+
+module.exports = { configureChannel, reconcileCurrentChannel, normalizeSchedule, isWithinHours, isDue, pause, resume, waitForIdle };

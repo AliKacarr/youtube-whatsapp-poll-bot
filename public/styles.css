@@ -10,8 +10,8 @@ h1 span { color:var(--red); }
 .badge,.status-line { border:1px solid var(--line); border-radius:999px; padding:9px 13px; color:var(--muted); white-space:nowrap; }
 .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; align-items:start; }
 .setup-column { display:grid; align-content:start; gap:18px; }
-#whatsappCard,#channelCard { min-height:280px; }
-#scheduleCard,#groupCard { min-height:380px; }
+#whatsappCard,#groupCard { min-height:280px; }
+#scheduleCard,#channelCard { min-height:380px; }
 #testCard,#readyPanel { min-height:280px; }
 .card { background:linear-gradient(145deg,rgba(20,25,35,.97),rgba(14,17,24,.97)); border:1px solid var(--line); border-radius:20px; padding:24px; box-shadow:0 18px 60px rgba(0,0,0,.22); }
 .card-head { display:flex; gap:13px; margin-bottom:22px; }
@@ -42,14 +42,10 @@ button.secondary { background:#252c39; color:#dce2ec; }
 .channel-avatar-wrap { position:relative; display:grid; place-items:center; width:48px; height:48px; flex:0 0 48px; overflow:hidden; border-radius:8px; background:#242a35; }
 .channel-avatar-placeholder { color:var(--cyan); font-size:18px; }
 .channel-avatar-image { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
-.delivery-summary { margin-top:17px; padding:14px; border:1px solid var(--line); border-radius:12px; background:#0b0f16; }
-.delivery-summary span { display:block; margin-bottom:5px; color:var(--cyan); font-size:12px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
-.delivery-summary strong { display:block; font-size:14px; }
-.delivery-summary p { font-weight:bold; margin:4px 0 0; color:var(--muted); font-size:13px; }
 .callback { margin-top:17px; color:var(--muted); }
 .callback span { display:block; margin-bottom:5px; font-size:12px; }
 code { display:block; overflow:auto; padding:10px; background:#090c12; border-radius:9px; color:var(--cyan); }
-.schedule-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:end; }
+.schedule-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:end; margin-top:12px; }
 .schedule-grid > div { min-width:0; }
 .schedule-grid span { display:block; margin:5px 0 0; color:var(--muted); font-size:12px; }
 .schedule-grid label { margin-top:0; }
@@ -90,5 +86,5 @@ td a { color:var(--cyan); }
 .social-icons a { display:grid; place-items:center; width:42px; height:42px; border:1px solid var(--line); border-radius:50%; color:#c8cfda; font-size:19px; text-decoration:none; transition:border-color .2s,color .2s,background .2s,transform .2s; }
 .social-icons a:hover { border-color:var(--cyan); background:rgba(104,225,212,.08); color:var(--cyan); transform:translateY(-2px); }
 .social-icons a:focus-visible { outline:2px solid var(--cyan); outline-offset:3px; }
-@media(max-width:760px) { .grid{display:flex;flex-direction:column}.setup-column{display:contents}.grid .card{width:100%;min-height:0}#whatsappCard{order:1}#channelCard{order:2}#scheduleCard{order:3}#groupCard{order:4}#testCard{order:5}#readyPanel{order:6} header{display:block}.badge{display:inline-block;margin-top:12px}.shell{padding-top:30px}.schedule-grid{grid-template-columns:1fr} }
+@media(max-width:760px) { .grid{display:flex;flex-direction:column}.setup-column{display:contents}.grid .card{width:100%;min-height:0}#whatsappCard{order:1}#groupCard{order:2}#scheduleCard{order:3}#channelCard{order:4}#testCard{order:5}#readyPanel{order:6} header{display:block}.badge{display:inline-block;margin-top:12px}.shell{padding-top:30px}.schedule-grid{grid-template-columns:1fr} }
 @media(max-width:600px) { .site-footer{flex-direction:column;text-align:center}.social-icons{justify-content:center} }

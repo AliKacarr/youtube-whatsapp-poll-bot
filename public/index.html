@@ -31,21 +31,42 @@
       </article>
 
       <article class="card" id="scheduleCard">
-        <div class="card-head"><span class="step">03</span><div><h2>Kontrol saatleri</h2><p>YouTube kanalı her dakika, seçtiğiniz saatler arasında kontrol edilir.</p></div></div>
+        <div class="card-head"><span class="step">03</span><div><h2>Kontrol ve gönderim</h2><p>Kontrol saatlerini ve WhatsApp gönderim biçimini seçin.</p></div></div>
         <div id="scheduleSettings">
+          <label for="deliveryType">Gönderim biçimi</label>
+          <select id="deliveryType">
+            <option value="poll">Anket</option>
+            <option value="message">Mesaj</option>
+          </select>
           <div class="schedule-grid">
             <div><label for="startHour">Başlangıç</label><select id="startHour"></select></div>
             <div><label for="endHour">Bitiş</label><select id="endHour"></select></div>
           </div>
-          <button id="saveScheduleButton" class="secondary full">Saat aralığını kaydet</button>
           <p class="micro">Saatler Türkiye saatine (GMT+3) göre uygulanır; bitiş saati başlangıçtan küçükse kontrol gece yarısını geçerek sürer.</p>
         </div>
+      </article>
+
+      <article class="card" id="testCard">
+        <div class="card-head"><span class="step">05</span><div><h2>Test gönderimi</h2><p>Canlıya geçmeden önce seçtiğiniz gönderim biçimini test edebilirsiniz.</p></div></div>
+        <div id="testTitleWrap" class="hidden">
+          <label for="testTitle">Test video başlığı</label>
+          <input id="testTitle" value="Hayat Değiştiren İnce Düşünce">
+        </div>
+        <label for="testUrl">Test video URL'si</label>
+        <input id="testUrl" value="https://www.youtube.com/watch?v=test">
+        <button id="testDeliveryButton" class="full">Test anketi gönder</button>
       </article>
       </div>
 
       <div class="setup-column">
+      <article class="card" id="groupCard">
+        <div class="card-head"><span class="step">02</span><div><h2>Hedef WhatsApp grubu</h2><p>Videoların gönderileceği WhatsApp grubunu seçin.</p></div></div>
+        <div id="selectedGroup" class="selected-box">Henüz grup seçilmedi.</div>
+        <button id="openGroupsButton" class="full">Grup seç</button>
+      </article>
+
       <article class="card" id="channelCard">
-        <div class="card-head"><span class="step">02</span><div><h2>YouTube kanalı</h2><p>URL, @handle veya UC… kanal ID girebilirsiniz.</p></div></div>
+        <div class="card-head"><span class="step">04</span><div><h2>YouTube kanalı</h2><p>URL, @handle veya UC… kanal ID girebilirsiniz.</p></div></div>
         <div id="selectedChannel" class="selected-box channel-box hidden"></div>
         <button id="changeChannelButton" class="secondary full hidden">Kanalı değiştir</button>
         <div id="channelEditor" class="hidden">
@@ -55,25 +76,6 @@
         </div>
       </article>
 
-      <article class="card" id="groupCard">
-        <div class="card-head"><span class="step">04</span><div><h2>Hedef grup</h2><p>Anketlerin gönderileceği WhatsApp grubunu seçin.</p></div></div>
-        <div id="selectedGroup" class="selected-box">Henüz grup seçilmedi.</div>
-        <button id="openGroupsButton" class="secondary full">Grup seç</button>
-        <div class="delivery-summary">
-          <span>Gönderim özeti</span>
-          <p>Anket başlığı: Video bağlantısı</p>
-          <p>Seçenekler: İzledim ve İzlemedim</p>
-        </div>
-      </article>
-      </div>
-
-      <article class="card" id="testCard">
-        <div class="card-head"><span class="step">05</span><div><h2>Test ve webhook</h2><p>Canlıya geçmeden önce bir test anketi gönderebilirsiniz.</p></div></div>
-        <label for="testUrl">Test video URL'si</label>
-        <input id="testUrl" value="https://www.youtube.com/watch?v=test">
-        <button id="testPollButton" class="secondary full">Test anketi gönder</button>
-      </article>
-
       <article id="readyPanel" class="card ready-panel" aria-live="polite">
       <span class="step">06</span>
       <div>
@@ -81,11 +83,14 @@
         <p id="readyDescription">Otomasyonu hazır hale getirmek için önceki adımları tamamlayın.</p>
         <dl class="ready-summary">
           <div><dt>Hedef grup</dt><dd id="readyGroup"></dd></div>
+          <div><dt>Gönderim biçimi</dt><dd id="readyDeliveryType"></dd></div>
           <div><dt>Kontrol planı</dt><dd id="readySchedule"></dd></div>
           <div><dt>Son kontrol</dt><dd id="readyLastChecked"></dd></div>
         </dl>
       </div>
       </article>
+      </div>
+
     </section>
 
     <section class="card history">

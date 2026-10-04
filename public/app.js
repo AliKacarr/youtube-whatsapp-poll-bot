@@ -2,6 +2,8 @@ const $ = selector => document.querySelector(selector);
 let currentSettings = null;
 let eventsPage = 0;
 let whatsappReady = false;
+let sendingSettingsDirty = false;
+let sendingSettingsVersion = 0;
 
 function populateHours() {
   const options = Array.from({ length: 24 }, (_, hour) => `<option value="${hour}">${String(hour).padStart(2, '0')}:00</option>`).join('');
@@ -13,8 +15,9 @@ function setLocked(cardSelector, locked, controls, message) {
   $(cardSelector).classList.toggle('is-locked', locked);
   controls.forEach(selector => {
     const element = $(selector);
-    element.disabled = locked;
-    element.title = locked ? message : '';
+    if (element.disabled !== locked) element.disabled = locked;
+    const title = locked ? message : '';
+    if (element.title !== title) element.title = title;
   });
 }
 
@@ -33,6 +36,15 @@ function toast(message, error = false) {
   toast.timer = setTimeout(() => { element.className = ''; }, 3800);
 }
 
+function renderDeliveryType(deliveryType) {
+  const isMessage = deliveryType === 'message';
+  const normalizedType = isMessage ? 'message' : 'poll';
+  if ($('#deliveryType').value !== normalizedType) $('#deliveryType').value = normalizedType;
+  $('#testTitleWrap').classList.toggle('hidden', !isMessage);
+  const buttonText = isMessage ? 'Test mesajı gönder' : 'Test anketi gönder';
+  if ($('#testDeliveryButton').textContent !== buttonText) $('#testDeliveryButton').textContent = buttonText;
+}
+
 function renderStatus(data) {
   currentSettings = data.settings;
   const wa = data.whatsapp;
@@ -40,8 +52,8 @@ function renderStatus(data) {
   $('#systemBadge').textContent = wa.status === 'READY' ? '\u25cf Sistem haz\u0131r' : `\u25cf ${whatsappStatus}`;
   $('#waStatus').textContent = wa.status === 'READY' ? `${wa.userInfo?.name || 'WhatsApp'} ba\u011fl\u0131` : wa.lastError ? formatErrorMessage(wa.lastError) : whatsappStatus;
   $('#waNextStep').textContent = wa.status === 'READY'
-    ? 'Bağlantı tamamlandı. Sıradaki adım: YouTube kanalını seçin.'
-    : 'QR kodunu okuttuktan sonra YouTube kanalını seçebilirsiniz.';
+    ? 'Bağlantı tamamlandı. Sıradaki adım: Hedef WhatsApp grubunu seçin.'
+    : 'QR kodunu okuttuktan sonra hedef WhatsApp grubunu seçebilirsiniz.';
   $('#qrWrap').classList.toggle('hidden', !wa.qrDataUrl);
   if (wa.qrDataUrl) $('#qrImage').src = wa.qrDataUrl;
   $('#connectButton').classList.toggle('hidden', wa.status === 'READY' || Boolean(wa.qrDataUrl));
@@ -50,44 +62,72 @@ function renderStatus(data) {
   const schedule = { intervalMinutes: 1, startHour: monitor?.schedule?.startHour ?? 0, endHour: monitor?.schedule?.endHour ?? 23 };
   const lastChecked = monitor?.lastCheckedAt
     ? new Intl.DateTimeFormat('tr-TR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).format(new Date(monitor.lastCheckedAt))
-    : 'henüz kontrol edilmedi';
+    : 'Henüz kontrol edilmedi';
   const hasChannel = Boolean(data.settings?.youtubeChannelId);
   const editingChannel = Boolean($('#channelEditor').dataset.editing);
   $('#selectedChannel').classList.toggle('hidden', !hasChannel);
   $('#changeChannelButton').classList.toggle('hidden', !hasChannel || editingChannel);
   if (hasChannel) {
     const thumbnail = data.settings.youtubeChannelThumbnail;
-    $('#selectedChannel').innerHTML = `<span class="channel-avatar-wrap" aria-hidden="true"><span class="channel-avatar-placeholder">▶</span>${thumbnail ? `<img class="channel-avatar-image" src="${escapeHtml(thumbnail)}" alt="">` : ''}</span><div><strong>${escapeHtml(data.settings.youtubeChannelTitle || 'YouTube kanalı')}</strong><span>${escapeHtml(data.settings.youtubeChannelId)}</span></div>`;
-    $('#selectedChannel .channel-avatar-image')?.addEventListener('error', event => event.currentTarget.remove());
+    const channelRenderKey = JSON.stringify([data.settings.youtubeChannelId, data.settings.youtubeChannelTitle, thumbnail]);
+    if ($('#selectedChannel').dataset.renderKey !== channelRenderKey) {
+      const thumbnailVersion = encodeURIComponent(data.settings.youtubeChannelId);
+      $('#selectedChannel').innerHTML = `<span class="channel-avatar-wrap" aria-hidden="true"><span class="channel-avatar-placeholder">▶</span>${thumbnail ? `<img class="channel-avatar-image" src="/api/channel-thumbnail?v=${thumbnailVersion}" alt="">` : ''}</span><div><strong>${escapeHtml(data.settings.youtubeChannelTitle || 'YouTube kanalı')}</strong><span>${escapeHtml(data.settings.youtubeChannelId)}</span></div>`;
+      $('#selectedChannel').dataset.renderKey = channelRenderKey;
+      $('#selectedChannel .channel-avatar-image')?.addEventListener('error', event => event.currentTarget.remove());
+    }
     if (!editingChannel) $('#channelEditor').classList.add('hidden');
   } else {
+    delete $('#selectedChannel').dataset.renderKey;
     $('#channelEditor').classList.remove('hidden');
   }
   const hasGroup = Boolean(data.settings?.targetGroupId);
-  $('#selectedGroup').innerHTML = hasGroup
-    ? `<div><strong>${escapeHtml(data.settings.targetGroupName || 'Seçili grup')}</strong><span>${escapeHtml(data.settings.targetGroupId)}</span></div>`
-    : 'Henüz grup seçilmedi.';
-  $('#openGroupsButton').textContent = hasGroup ? 'Grubu değiştir' : 'Grup seç';
-  $('#readyGroup').textContent = data.settings?.targetGroupName || 'Hedef grup seçilmedi';
-  $('#readySchedule').textContent = `${String(schedule.startHour).padStart(2, '0')}:00–${String(schedule.endHour).padStart(2, '0')}:00 saatleri arası her dakika kontrol`;
-  $('#readyLastChecked').textContent = lastChecked;
+  if (!sendingSettingsDirty) renderDeliveryType(data.settings?.deliveryType);
+  const groupRenderKey = JSON.stringify([data.settings?.targetGroupId, data.settings?.targetGroupName]);
+  if ($('#selectedGroup').dataset.renderKey !== groupRenderKey) {
+    $('#selectedGroup').innerHTML = hasGroup
+      ? `<div><strong>${escapeHtml(data.settings.targetGroupName || 'Seçili grup')}</strong><span>${escapeHtml(data.settings.targetGroupId)}</span></div>`
+      : 'Henüz grup seçilmedi.';
+    $('#selectedGroup').dataset.renderKey = groupRenderKey;
+  }
+  const groupButtonText = hasGroup ? 'Grubu değiştir' : 'Grup seç';
+  if ($('#openGroupsButton').textContent !== groupButtonText) $('#openGroupsButton').textContent = groupButtonText;
+  $('#openGroupsButton').classList.toggle('secondary', hasGroup);
   if (!$('#channelInput').value && data.settings?.youtubeInput) $('#channelInput').value = data.settings.youtubeInput;
 
-  $('#startHour').value = schedule.startHour;
-  $('#endHour').value = schedule.endHour;
+  if (!sendingSettingsDirty) {
+    $('#startHour').value = schedule.startHour;
+    $('#endHour').value = schedule.endHour;
+  }
   whatsappReady = wa.status === 'READY';
-  const canConfigureSchedule = whatsappReady && hasChannel;
-  setLocked('#channelCard', !whatsappReady, ['#channelInput', '#changeChannelButton'], 'Önce WhatsApp bağlantısını tamamlayın.');
-  $('#saveChannelButton').disabled = !whatsappReady || !$('#channelInput').value.trim();
-  setLocked('#scheduleCard', !canConfigureSchedule, ['#startHour', '#endHour', '#saveScheduleButton'], !whatsappReady ? 'Önce WhatsApp bağlantısını tamamlayın.' : 'Önce YouTube kanalını kaydedin.');
-  setLocked('#groupCard', !whatsappReady || !hasChannel, ['#openGroupsButton'], !whatsappReady ? 'Önce WhatsApp bağlantısını tamamlayın.' : 'Önce YouTube kanalını kaydedin.');
+  const canConfigureSchedule = whatsappReady && hasGroup;
+  const canConfigureChannel = canConfigureSchedule;
+  setLocked('#groupCard', !whatsappReady, ['#openGroupsButton'], 'Önce WhatsApp bağlantısını tamamlayın.');
+  setLocked('#scheduleCard', !canConfigureSchedule, ['#startHour', '#endHour', '#deliveryType'], !whatsappReady ? 'Önce WhatsApp bağlantısını tamamlayın.' : 'Önce hedef WhatsApp grubunu seçin.');
+  setLocked('#channelCard', !canConfigureChannel, ['#channelInput', '#changeChannelButton', '#saveChannelButton'], !whatsappReady ? 'Önce WhatsApp bağlantısını tamamlayın.' : 'Önce hedef WhatsApp grubunu seçin.');
+  $('#saveChannelButton').disabled = !canConfigureChannel || !$('#channelInput').value.trim();
   const canTest = whatsappReady && hasChannel && hasGroup;
-  setLocked('#testCard', !canTest, ['#testUrl', '#testPollButton'], 'Test için önceki üç adımı tamamlayın.');
-  $('#readyPanel').classList.toggle('is-ready', canTest);
-  $('#readyTitle').textContent = canTest ? 'Otomasyon hazır' : 'Kurulum devam ediyor';
-  $('#readyDescription').textContent = canTest
-    ? 'Yeni video bulunduğunda anket otomatik gönderilir.'
-    : 'Otomasyonu hazır hale getirmek için önceki adımları tamamlayın.';
+  setLocked('#testCard', !canTest, ['#testTitle', '#testUrl', '#testDeliveryButton'], 'Test için önceki üç adımı tamamlayın.');
+  const readyRenderKey = JSON.stringify([
+    canTest,
+    data.settings?.targetGroupName,
+    data.settings?.deliveryType,
+    schedule.startHour,
+    schedule.endHour,
+    lastChecked
+  ]);
+  if ($('#readyPanel').dataset.renderKey !== readyRenderKey) {
+    $('#readyPanel').classList.toggle('is-ready', canTest);
+    $('#readyTitle').textContent = canTest ? 'Otomasyon hazır' : 'Kurulum devam ediyor';
+    $('#readyDescription').textContent = canTest
+      ? `Yeni video bulunduğunda ${data.settings?.deliveryType === 'message' ? 'mesaj' : 'anket'} otomatik gönderilir.`
+      : 'Otomasyonu hazır hale getirmek için önceki adımları tamamlayın.';
+    $('#readyGroup').textContent = data.settings?.targetGroupName || 'Hedef grup seçilmedi';
+    $('#readyDeliveryType').textContent = data.settings?.deliveryType === 'message' ? 'Mesaj' : 'Anket';
+    $('#readySchedule').textContent = `${String(schedule.startHour).padStart(2, '0')}:00–${String(schedule.endHour).padStart(2, '0')}:00 saatleri arası her dakika kontrol`;
+    $('#readyLastChecked').textContent = lastChecked;
+    $('#readyPanel').dataset.renderKey = readyRenderKey;
+  }
 }
 
 async function refreshStatus() {
@@ -134,6 +174,7 @@ function formatEventStatus(status) {
     sending: 'Gönderiliyor',
     sent: 'Gönderildi',
     failed: 'Gönderilemedi',
+    cancelled: 'İptal edildi',
     ignored: 'Başlangıç kaydı'
   };
   return labels[status] || 'Bilinmeyen';
@@ -145,16 +186,37 @@ $('#openGroupsButton').onclick = async () => { $('#groupModal').classList.remove
 $('#closeGroupsButton').onclick = () => $('#groupModal').classList.add('hidden');
 $('#groupModal').onclick = event => { if (event.target === $('#groupModal')) $('#groupModal').classList.add('hidden'); };
 $('#changeChannelButton').onclick = () => { $('#channelInput').value = ''; $('#saveChannelButton').disabled = true; $('#channelEditor').dataset.editing = 'true'; $('#channelEditor').classList.remove('hidden'); $('#changeChannelButton').classList.add('hidden'); $('#channelInput').focus(); };
-$('#channelInput').oninput = () => { $('#saveChannelButton').disabled = !$('#channelInput').value.trim() || !whatsappReady; };
+$('#channelInput').oninput = () => { $('#saveChannelButton').disabled = !$('#channelInput').value.trim() || $('#channelCard').classList.contains('is-locked'); };
 $('#saveChannelButton').onclick = async () => { try { await api('/api/settings/channel', { method:'PUT', body:JSON.stringify({ input:$('#channelInput').value }) }); delete $('#channelEditor').dataset.editing; $('#channelEditor').classList.add('hidden'); toast('Kanal kaydedildi.'); await refreshStatus(); } catch (e) { toast(e.message, true); } };
-$('#saveScheduleButton').onclick = async () => {
+async function saveSendingSettings() {
+  const version = sendingSettingsVersion;
   try {
-    await api('/api/settings/monitor', { method:'PUT', body:JSON.stringify({ startHour: $('#startHour').value, endHour: $('#endHour').value }) });
-    toast('Kontrol saatleri kaydedildi.');
-    await refreshStatus();
-  } catch (e) { toast(e.message, true); }
+    await api('/api/settings/monitor', { method:'PUT', body:JSON.stringify({ startHour: $('#startHour').value, endHour: $('#endHour').value, deliveryType: $('#deliveryType').value }) });
+    if (version === sendingSettingsVersion) {
+      sendingSettingsDirty = false;
+      await refreshStatus();
+    }
+  } catch (e) {
+    toast(e.message, true);
+    if (version === sendingSettingsVersion) {
+      sendingSettingsDirty = false;
+      await refreshStatus();
+    }
+  }
+}
+function sendingSettingsChanged() {
+  sendingSettingsDirty = true;
+  sendingSettingsVersion += 1;
+  clearTimeout(saveSendingSettings.timer);
+  saveSendingSettings.timer = setTimeout(saveSendingSettings, 250);
+}
+$('#startHour').onchange = sendingSettingsChanged;
+$('#endHour').onchange = sendingSettingsChanged;
+$('#deliveryType').onchange = () => {
+  renderDeliveryType($('#deliveryType').value);
+  sendingSettingsChanged();
 };
-$('#testPollButton').onclick = async () => { try { await api('/api/test-poll', { method:'POST', body:JSON.stringify({ videoUrl:$('#testUrl').value }) }); toast('Test anketi gönderildi.'); } catch (e) { toast(e.message, true); } };
+$('#testDeliveryButton').onclick = async () => { try { const deliveryType = currentSettings?.deliveryType === 'message' ? 'message' : 'poll'; await api('/api/test-delivery', { method:'POST', body:JSON.stringify({ title:$('#testTitle').value, videoUrl:$('#testUrl').value }) }); toast(`Test ${deliveryType === 'message' ? 'mesajı' : 'anketi'} gönderildi.`); } catch (e) { toast(e.message, true); } };
 $('#previousEventsButton').onclick = () => { if (eventsPage > 0) { eventsPage -= 1; loadEvents(); } };
 $('#nextEventsButton').onclick = () => { eventsPage += 1; loadEvents(); };
 

@@ -4,6 +4,21 @@ const { getConfigKey } = require('./config');
 let client;
 let database;
 
+function defaultSettings(configKey) {
+  const youtubeChannelId = process.env.YOUTUBE_CHANNEL_ID?.trim() || null;
+  return {
+    youtubeChannelId,
+    configKey,
+    youtubeChannelTitle: null,
+    youtubeChannelThumbnail: null,
+    youtubeInput: youtubeChannelId,
+    targetGroupId: null,
+    targetGroupName: null,
+    deliveryType: 'poll',
+    monitor: { schedule: { intervalMinutes: 1, startHour: 0, endHour: 23 } }
+  };
+}
+
 async function connectDatabase() {
   const uri = process.env.MONGO_URI?.trim();
   const dbName = process.env.DB_NAME?.trim();
@@ -45,21 +60,13 @@ async function connectDatabase() {
     { _id: configKey },
     {
       $setOnInsert: {
-        youtubeChannelId: process.env.YOUTUBE_CHANNEL_ID?.trim() || null,
-        configKey,
-        youtubeChannelTitle: null,
-        youtubeChannelThumbnail: null,
-        youtubeInput: process.env.YOUTUBE_CHANNEL_ID?.trim() || null,
-        targetGroupId: null,
-        targetGroupName: null,
-        monitor: { enabled: true, schedule: { intervalMinutes: 1, startHour: 0, endHour: 23 } },
+        ...defaultSettings(configKey),
         createdAt: new Date()
       },
       $set: { updatedAt: new Date() }
     },
     { upsert: true }
   );
-
   console.log(`MongoDB bağlantısı hazır: ${dbName}`);
   return database;
 }
@@ -82,8 +89,19 @@ async function updateSettings(update) {
   return getSettings();
 }
 
+async function resetSettings() {
+  const now = new Date();
+  const configKey = getConfigKey();
+  await db().collection('app_settings').replaceOne(
+    { _id: configKey },
+    { _id: configKey, ...defaultSettings(configKey), createdAt: now, updatedAt: now },
+    { upsert: true }
+  );
+  return getSettings();
+}
+
 async function closeDatabase() {
   if (client) await client.close();
 }
 
-module.exports = { connectDatabase, closeDatabase, db, getSettings, updateSettings };
+module.exports = { connectDatabase, closeDatabase, db, getSettings, updateSettings, resetSettings };

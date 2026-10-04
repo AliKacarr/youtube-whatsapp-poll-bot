@@ -189,8 +189,25 @@ async function sendVideoPoll({ groupId, videoUrl }) {
   return { messageId: sent?.key?.id || null, groupId: target };
 }
 
+function formatVideoMessage({ title, videoUrl }) {
+  const cleanTitle = String(title || '').trim();
+  const cleanUrl = String(videoUrl || '').trim();
+  if (!cleanTitle) throw new Error('Video başlığı gereklidir.');
+  if (!cleanUrl) throw new Error('Video bağlantısı gereklidir.');
+  return `${cleanTitle}\n${cleanUrl}`;
+}
+
+async function sendVideoMessage({ groupId, title, videoUrl }) {
+  if (!socket || state.status !== 'READY') throw new Error('WhatsApp istemcisi hazır değil.');
+  const settings = await getSettings();
+  const target = groupId || settings?.targetGroupId;
+  if (!target) throw new Error('Hedef WhatsApp grubu seçilmedi.');
+  const sent = await socket.sendMessage(target, { text: formatVideoMessage({ title, videoUrl }) });
+  return { messageId: sent?.key?.id || null, groupId: target };
+}
+
 function getState() {
   return { ...state, qrDataUrl: state.qrDataUrl };
 }
 
-module.exports = { start, logout, groups, sendVideoPoll, getState };
+module.exports = { start, logout, groups, sendVideoPoll, sendVideoMessage, formatVideoMessage, getState };

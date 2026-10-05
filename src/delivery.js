@@ -26,11 +26,14 @@ async function processNext() {
     if (!event) return;
     try {
       const settings = await getSettings();
-      if (!settings?.targetGroupId) throw new Error('Hedef WhatsApp grubu seçilmedi.');
-      const deliveryType = settings.deliveryType === 'message' ? 'message' : 'poll';
+      const channel = settings?.channels?.find(item => item.automationId === event.automationId)
+        || settings?.channels?.find(item => item.id === event.channelId);
+      const targetGroupId = event.targetGroupId || channel?.targetGroupId || settings?.targetGroupId;
+      if (!targetGroupId) throw new Error('Hedef WhatsApp grubu seçilmedi.');
+      const deliveryType = (event.deliveryType || channel?.deliveryType || settings?.deliveryType) === 'message' ? 'message' : 'poll';
       const sent = deliveryType === 'message'
-        ? await whatsapp.sendVideoMessage({ groupId: settings.targetGroupId, title: event.title, videoUrl: event.videoUrl })
-        : await whatsapp.sendVideoPoll({ groupId: settings.targetGroupId, videoUrl: event.videoUrl });
+        ? await whatsapp.sendVideoMessage({ groupId: targetGroupId, title: event.title, videoUrl: event.videoUrl })
+        : await whatsapp.sendVideoPoll({ groupId: targetGroupId, videoUrl: event.videoUrl });
       await db().collection('video_events').updateOne(
         { _id: event._id },
         { $set: { status: 'sent', sentAt: new Date(), targetGroupId: sent.groupId, messageId: sent.messageId, deliveryType }, $unset: { lastError: '', nextAttemptAt: '', processingStartedAt: '' } }

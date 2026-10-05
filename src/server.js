@@ -38,30 +38,63 @@ const youtube = require('./youtube');
 const youtubeMonitor = require('./youtube-monitor');
 const whatsapp = require('./whatsapp');
 const delivery = require('./delivery');
+const auth = require('./auth');
 
 const app = express();
 const port = Number(process.env.PORT) || 3000;
 
 app.disable('x-powered-by');
+app.set('trust proxy', 1);
 app.get('/api/health', (req, res) => res.json({ ok: true, uptime: Math.round(process.uptime()), timestamp: new Date().toISOString() }));
 
 app.use(express.json({ limit: '100kb' }));
 app.use(express.static(path.join(__dirname, '..', 'public'), { etag: true, maxAge: 0 }));
 
-app.get('/api/status', async (req, res) => {
-  const settings = await getSettings();
-  res.json({
-    ok: true,
-    whatsapp: whatsapp.getState(),
-    settings
-  });
+app.get('/api/status', async (req, res, next) => {
+  try {
+    const settings = await getSettings();
+    const authState = await auth.status(req);
+    const { _id, configKey, ...safeSettings } = settings || {};
+    const whatsappState = whatsapp.getState();
+    const visibleSettings = authState.authenticated ? safeSettings : {
+      ...safeSettings,
+      channels: (safeSettings.channels || []).map(channel => {
+        const { targetGroupId, input, ...visibleChannel } = channel;
+        const { lastError, ...visibleMonitor } = visibleChannel.monitor || {};
+        return { ...visibleChannel, monitor: visibleMonitor };
+      })
+    };
+    res.json({
+      ok: true,
+      auth: authState,
+      whatsapp: authState.authenticated ? whatsappState : { ...whatsappState, qrDataUrl: null, lastError: null, userInfo: whatsappState.userInfo ? { name: whatsappState.userInfo.name } : null },
+      settings: visibleSettings,
+      quota: youtubeMonitor.quotaSummary(settings?.channels)
+    });
+  } catch (error) { next(error); }
 });
 
-app.post('/api/whatsapp/start', async (req, res, next) => {
+app.get('/api/auth/status', async (req, res, next) => {
+  try { res.json({ ok: true, auth: await auth.status(req) }); } catch (error) { next(error); }
+});
+
+app.post('/api/auth/setup', async (req, res, next) => {
+  try { await auth.setup(req, res); res.status(201).json({ ok: true, auth: { authenticated: true, passwordConfigured: true } }); } catch (error) { next(error); }
+});
+
+app.post('/api/auth/login', async (req, res, next) => {
+  try { await auth.login(req, res); res.json({ ok: true, auth: { authenticated: true, passwordConfigured: true } }); } catch (error) { next(error); }
+});
+
+app.post('/api/auth/logout', async (req, res, next) => {
+  try { await auth.logout(req, res); res.json({ ok: true }); } catch (error) { next(error); }
+});
+
+app.post('/api/whatsapp/start', auth.requireAdmin, async (req, res, next) => {
   try { await whatsapp.start(false); res.json({ ok: true, whatsapp: whatsapp.getState() }); } catch (error) { next(error); }
 });
 
-app.post('/api/whatsapp/logout', async (req, res, next) => {
+app.post('/api/whatsapp/logout', auth.requireAdmin, async (req, res, next) => {
   delivery.pause();
   youtubeMonitor.pause();
   try {
@@ -77,15 +110,16 @@ app.post('/api/whatsapp/logout', async (req, res, next) => {
   }
 });
 
-app.get('/api/groups', async (req, res, next) => {
+app.get('/api/groups', auth.requireAdmin, async (req, res, next) => {
   try { const groups = await whatsapp.groups(); res.json({ ok: true, groups }); } catch (error) { next(error); }
 });
 
-app.get('/api/channel-thumbnail', async (req, res, next) => {
+app.get('/api/channel-thumbnail/:automationId', async (req, res, next) => {
   try {
     const settings = await getSettings();
-    if (!settings?.youtubeChannelThumbnail) return res.sendStatus(404);
-    const thumbnailUrl = new URL(settings.youtubeChannelThumbnail);
+    const channel = settings?.channels?.find(item => item.automationId === req.params.automationId);
+    if (!channel?.thumbnail) return res.sendStatus(404);
+    const thumbnailUrl = new URL(channel.thumbnail);
     const allowedHosts = ['yt3.ggpht.com', 'yt3.googleusercontent.com'];
     if (thumbnailUrl.protocol !== 'https:' || !allowedHosts.includes(thumbnailUrl.hostname)) return res.sendStatus(404);
     const response = await fetch(thumbnailUrl, { signal: AbortSignal.timeout(10000) });
@@ -100,65 +134,66 @@ app.get('/api/channel-thumbnail', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-app.post('/api/youtube/resolve', async (req, res, next) => {
+app.post('/api/youtube/resolve', auth.requireAdmin, async (req, res, next) => {
   try { res.json({ ok: true, channel: await youtube.resolveChannel(req.body.input) }); } catch (error) { next(error); }
 });
 
-app.put('/api/settings/channel', async (req, res, next) => {
-  try {
-    const settings = await getSettings();
-    if (whatsapp.getState().status !== 'READY') throw new Error('Önce WhatsApp bağlantısını tamamlayın.');
-    if (!settings?.targetGroupId) throw new Error('Önce hedef WhatsApp grubunu seçin.');
-    const channel = await youtube.resolveChannel(req.body.input);
-    const monitor = await youtubeMonitor.configureChannel(channel);
-    res.json({ ok: true, channel, monitor });
-  } catch (error) { next(error); }
-});
-
-app.put('/api/settings/group', async (req, res, next) => {
+app.post('/api/channels', auth.requireAdmin, async (req, res, next) => {
   try {
     if (whatsapp.getState().status !== 'READY') throw new Error('Önce WhatsApp bağlantısını tamamlayın.');
-    const groupId = String(req.body.groupId || '').trim();
-    if (!groupId.endsWith('@g.us')) throw new Error('Geçerli bir WhatsApp grup JID seçin.');
-    const groups = await whatsapp.groups();
-    const group = groups.find(item => item.id === groupId);
+    const groupId = String(req.body.targetGroupId || '').trim();
+    if (!groupId.endsWith('@g.us')) throw new Error('Geçerli bir WhatsApp grubu seçin.');
+    const group = (await whatsapp.groups()).find(item => item.id === groupId);
     if (!group) throw new Error('Seçilen grup bağlı WhatsApp hesabında bulunamadı.');
-    res.json({ ok: true, settings: await updateSettings({ targetGroupId: group.id, targetGroupName: group.name }) });
-  } catch (error) { next(error); }
-});
-
-app.put('/api/settings/delivery', async (req, res, next) => {
-  try {
-    const settings = await getSettings();
-    if (whatsapp.getState().status !== 'READY') throw new Error('Önce WhatsApp bağlantısını tamamlayın.');
-    if (!settings?.targetGroupId) throw new Error('Önce hedef WhatsApp grubunu seçin.');
-    const deliveryType = String(req.body.deliveryType || '').trim();
+    const deliveryType = String(req.body.deliveryType || 'poll');
     if (!['poll', 'message'].includes(deliveryType)) throw new Error('Gönderim biçimi anket veya mesaj olmalıdır.');
-    res.json({ ok: true, settings: await updateSettings({ deliveryType }) });
+    const channel = await youtube.resolveChannel(req.body.input);
+    const result = await youtubeMonitor.addChannel(channel, { targetGroupId: group.id, targetGroupName: group.name, deliveryType, schedule: req.body.schedule });
+    res.status(201).json({ ok: true, ...result });
   } catch (error) { next(error); }
 });
 
-app.put('/api/settings/monitor', async (req, res, next) => {
+app.put('/api/channels/:automationId', auth.requireAdmin, async (req, res, next) => {
   try {
-    const settings = await getSettings();
     if (whatsapp.getState().status !== 'READY') throw new Error('Önce WhatsApp bağlantısını tamamlayın.');
-    if (!settings?.targetGroupId) throw new Error('Önce hedef WhatsApp grubunu seçin.');
-    const schedule = youtubeMonitor.normalizeSchedule(req.body);
-    const deliveryType = String(req.body.deliveryType || '').trim();
+    const groupId = String(req.body.targetGroupId || '').trim();
+    if (!groupId.endsWith('@g.us')) throw new Error('Geçerli bir WhatsApp grup JID seçin.');
+    const group = (await whatsapp.groups()).find(item => item.id === groupId);
+    if (!group) throw new Error('Seçilen grup bağlı WhatsApp hesabında bulunamadı.');
+    const settings = await getSettings();
+    const index = settings.channels?.findIndex(item => item.automationId === req.params.automationId);
+    if (index < 0) throw new Error('YouTube kanalı bulunamadı.');
+    const deliveryType = String(req.body.deliveryType || 'poll');
     if (!['poll', 'message'].includes(deliveryType)) throw new Error('Gönderim biçimi anket veya mesaj olmalıdır.');
-    res.json({ ok: true, settings: await updateSettings({ 'monitor.schedule': schedule, deliveryType }) });
+    const updated = { ...settings.channels[index], targetGroupId: group.id, targetGroupName: group.name, deliveryType, enabled: req.body.enabled !== false, monitor: { ...settings.channels[index].monitor, schedule: youtubeMonitor.normalizeSchedule(req.body.schedule) } };
+    const channels = [...settings.channels];
+    channels[index] = updated;
+    const quota = youtubeMonitor.quotaSummary(channels);
+    await updateSettings({ channels });
+    res.json({ ok: true, channel: updated, quota });
   } catch (error) { next(error); }
 });
 
-app.post('/api/test-delivery', async (req, res, next) => {
+app.delete('/api/channels/:automationId', auth.requireAdmin, async (req, res, next) => {
   try {
     const settings = await getSettings();
-    if (whatsapp.getState().status !== 'READY' || !settings?.youtubeChannelId || !settings?.targetGroupId) throw new Error('Test için WhatsApp bağlantısı, YouTube kanalı ve hedef grup tamamlanmalıdır.');
+    const channels = (settings?.channels || []).filter(item => item.automationId !== req.params.automationId);
+    if (channels.length === settings.channels.length) throw new Error('YouTube kanalı bulunamadı.');
+    await updateSettings({ channels });
+    res.json({ ok: true, quota: youtubeMonitor.quotaSummary(channels) });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/test-delivery', auth.requireAdmin, async (req, res, next) => {
+  try {
+    const settings = await getSettings();
+    const channel = settings?.channels?.find(item => item.automationId === req.body.automationId);
+    if (whatsapp.getState().status !== 'READY' || !channel?.targetGroupId) throw new Error('Test için geçerli bir kanal seçilmelidir.');
     const videoUrl = String(req.body.videoUrl || 'https://www.youtube.com/watch?v=test').trim();
-    const deliveryType = settings.deliveryType === 'message' ? 'message' : 'poll';
+    const deliveryType = channel.deliveryType === 'message' ? 'message' : 'poll';
     const result = deliveryType === 'message'
-      ? await whatsapp.sendVideoMessage({ title: req.body.title || 'Test video başlığı', videoUrl })
-      : await whatsapp.sendVideoPoll({ videoUrl });
+      ? await whatsapp.sendVideoMessage({ groupId: channel.targetGroupId, title: req.body.title || 'Test video başlığı', videoUrl })
+      : await whatsapp.sendVideoPoll({ groupId: channel.targetGroupId, videoUrl });
     res.json({ ok: true, deliveryType, result });
   } catch (error) { next(error); }
 });
@@ -172,7 +207,18 @@ app.get('/api/events', async (req, res, next) => {
       db().collection('video_events').find(filter).sort({ receivedAt: -1 }).skip(page * 10).limit(10).toArray(),
       db().collection('video_events').countDocuments(filter)
     ]);
-    res.json({ ok: true, events, total, page });
+    const authState = await auth.status(req);
+    const visibleEvents = authState.authenticated ? events : events.map(event => ({
+      channelId: event.channelId,
+      channelTitle: event.channelTitle,
+      videoId: event.videoId,
+      title: event.title,
+      videoUrl: event.videoUrl,
+      targetGroupName: event.targetGroupName,
+      status: event.status,
+      receivedAt: event.receivedAt
+    }));
+    res.json({ ok: true, events: visibleEvents, total, page });
   } catch (error) { next(error); }
 });
 
@@ -191,11 +237,11 @@ function scheduleJobs() {
       } catch (error) { console.warn('Health self-ping hatası:', error.message); }
     });
   }
-  // Zamanlayıcı her dakika çalışır; kayıtlı aralık ve saat penceresi
-  // reconcileCurrentChannel içinde uygulanır. videoId unique indeksi tekrar gönderimi önler.
+  // Zamanlayıcı her dakika çalışır; her kanalın kayıtlı saat penceresi
+  // reconcileChannels içinde uygulanır. videoId unique indeksi tekrar gönderimi önler.
   schedule.scheduleJob('* * * * *', async () => {
     try {
-      const result = await youtubeMonitor.reconcileCurrentChannel();
+      const result = await youtubeMonitor.reconcileChannels();
       if (result?.inserted) delivery.kick();
     } catch (error) { console.warn('YouTube video kontrolü hatası:', error.message); }
   });
@@ -210,7 +256,7 @@ async function main() {
     console.log(`Sunucu 0.0.0.0:${port} üzerinde hazır.`);
     resolve();
   }));
-  youtubeMonitor.reconcileCurrentChannel()
+  youtubeMonitor.reconcileChannels()
     .then(result => { if (result?.inserted) delivery.kick(); })
     .catch(error => console.warn('YouTube başlangıç kontrolü başarısız:', error.message));
 }

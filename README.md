@@ -1,117 +1,60 @@
-# YouTube → WhatsApp Gönderim Botu
+# YouTube → WhatsApp Botu
 
-YouTube kanalında yayınlanan yeni videoları otomatik olarak tespit eden ve seçilen WhatsApp grubuna anket veya başlık-bağlantı biçiminde mesaj gönderen, web paneliyle yönetilebilen Node.js uygulaması.
+YouTube kanallarındaki yeni videoları takip eden ve seçilen WhatsApp gruplarına otomatik olarak anket veya mesaj gönderen Node.js uygulaması.
 
-> [!IMPORTANT]
-> Bu proje WhatsApp'ın resmî Business API'sini değil, Baileys üzerinden bağlı cihaz oturumunu kullanır. Kullanım sorumluluğu size aittir; WhatsApp kullanım koşullarını ve mesaj gönderdiğiniz grubun kurallarını gözetin.
+Web panelinden birden fazla kanal ekleyebilir; her kanal için hedef grup, gönderim biçimi ve çalışma saatlerini ayrı ayrı belirleyebilirsiniz.
 
-## Öne çıkan özellikler
+> Bu proje WhatsApp'ın resmî Business API'sini değil, Baileys bağlı cihaz oturumunu kullanır. Kullanım sorumluluğu size aittir.
 
-- YouTube kanalını URL, `@handle`, kullanıcı adı veya kanal kimliğiyle tanımlama
-- Kanalın yüklemeler listesini Türkiye saatine göre seçilen saat aralığında her dakika kontrol etme
-- Yeni video için WhatsApp grubuna tek seçimli anket veya video başlığı ve bağlantısından oluşan mesaj gönderme
-- QR kodla WhatsApp bağlantısı ve bağlı grupları panelden listeleme
-- WhatsApp oturumunu MongoDB'de saklama
-- Aynı videonun tekrar gönderilmesini önleyen benzersiz MongoDB indeksi
-- Başarısız gönderimler için 1, 5, 20, 60 ve 180 dakikalık kademeli yeniden deneme
-- Kesintiye uğrayan teslimatları uygulama yeniden başladığında kurtarma
-- Son video olaylarını ve gönderim durumlarını panelde görüntüleme
-- Aynı veritabanında birden fazla botu `CONFIG_KEY` ile birbirinden ayırma
-- Render ve benzeri Node.js barındırma ortamlarına hazır yapı
-- Sağlık kontrolü için `/api/health` endpoint'i
+## Özellikler
 
-## Çalışma akışı
+- Birden fazla YouTube kanalı ve WhatsApp grubu desteği
+- Aynı kanal veya grubun birden fazla otomasyonda kullanılabilmesi
+- Kanal bazında anket veya normal mesaj gönderimi
+- Türkiye saatine göre saat ve dakika hassasiyetli çalışma aralığı
+- Günlük tahmini YouTube API kullanım göstergesi
+- Tekrar gönderimi engelleyen MongoDB olay kaydı
+- Başarısız gönderimler için otomatik yeniden deneme
+- QR kod ile WhatsApp bağlantısı
+- Şifre korumalı düzenleme modu ve salt-okunur ziyaretçi görünümü
 
-1. Yönetim panelinden WhatsApp bağlantısı başlatılır ve QR kod okutulur.
-2. Hedef WhatsApp grubu seçilir.
-3. Kontrolün çalışacağı saatler ile anket veya mesaj gönderim biçimi belirlenir.
-4. İzlenecek YouTube kanalı seçilir.
-5. İsteğe bağlı olarak test gönderimi yapılır.
-6. Uygulama, belirlenen saat aralığında kanalın son videolarını her dakika kontrol eder.
-7. Yeni bir video bulunduğunda olay MongoDB kuyruğuna eklenir.
-8. Video seçilen biçime göre hedef gruba gönderilir.
+## Nasıl çalışır?
 
-Kanal ilk kez kaydedildiğinde mevcut son videolar başlangıç kaydı olarak işaretlenir ve gruba gönderilmez. Böylece yalnızca yapılandırmadan sonra yayınlanan yeni videolar otomasyona dahil edilir.
-
-## Teknoloji yığını
-
-- **Çalışma ortamı:** Node.js 20+
-- **Web sunucusu:** Express
-- **WhatsApp bağlantısı:** Baileys
-- **Veritabanı ve oturum saklama:** MongoDB
-- **YouTube entegrasyonu:** YouTube Data API v3
-- **Zamanlama:** node-schedule
-- **Arayüz:** HTML, CSS ve saf JavaScript
+1. WhatsApp hesabı QR kod ile bağlanır.
+2. Bir YouTube kanalı, WhatsApp grubu ve kontrol aralığı seçilir.
+3. Bot, belirlenen zaman aralığında kanalı dakikada bir kontrol eder.
+4. Daha önce işlenmemiş bir video bulunduğunda seçilen gruba anket veya mesaj gönderilir.
 
 ## Gereksinimler
 
-Kuruluma başlamadan önce aşağıdakilere ihtiyacınız vardır:
-
 - Node.js 20 veya üzeri
-- Bir MongoDB veritabanı
-- YouTube Data API v3 etkinleştirilmiş Google Cloud projesi ve API anahtarı
+- MongoDB veritabanı
+- YouTube Data API v3 anahtarı
 - QR kod okutabileceğiniz bir WhatsApp hesabı
 
-## Yerel kurulum
+## Kurulum
 
-Projeyi klonlayın:
+Projeyi indirin ve bağımlılıkları yükleyin:
 
 ```bash
 git clone https://github.com/AliKacarr/youtube-whatsapp-poll-bot.git
 cd youtube-whatsapp-poll-bot
-```
-
-Bağımlılıkları yükleyin:
-
-```bash
 npm install
 ```
 
-Örnek ortam dosyasını kopyalayın:
-
-```bash
-cp .env.example .env
-```
-
-Windows PowerShell kullanıyorsanız:
+`.env.example` dosyasını `.env` olarak kopyalayın:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-`.env` değerlerini doldurduktan sonra uygulamayı başlatın:
+Linux veya macOS için:
 
 ```bash
-npm start
+cp .env.example .env
 ```
 
-Yönetim panelini açın:
-
-```text
-http://localhost:3000
-```
-
-Geliştirme sırasında dosya değişikliklerinde otomatik yeniden başlatma için:
-
-```bash
-npm run dev
-```
-
-## Ortam değişkenleri
-
-| Değişken | Zorunlu | Varsayılan | Açıklama |
-|---|:---:|---|---|
-| `MONGO_URI` | Evet | — | MongoDB bağlantı adresi |
-| `DB_NAME` | Evet | — | Kullanılacak MongoDB veritabanının adı |
-| `CONFIG_KEY` | Evet | — | Bu bot kurulumunu diğerlerinden ayıran benzersiz anahtar |
-| `YOUTUBE_API_KEY` | Evet | — | YouTube Data API v3 anahtarı |
-| `PORT` | Hayır | `3000` | HTTP sunucusunun dinleyeceği port; Render otomatik sağlar |
-| `NODE_ENV` | Hayır | — | Üretim ortamında `production` olarak ayarlanabilir |
-| `YOUTUBE_CHANNEL_ID` | Hayır | — | İlk açılışta kullanılabilecek kanal kimliği; kanal panelden de seçilebilir |
-| `PING_URL` | Hayır | — | Tanımlanırsa uygulamanın iki dakikada bir çağıracağı sağlık kontrolü adresi |
-| `AUTH_COLLECTION` | Hayır | — | Eski bir Baileys oturum koleksiyonundan tek seferlik geçiş için kaynak koleksiyon |
-
-Örnek:
+Gerekli değerleri doldurun:
 
 ```env
 NODE_ENV=development
@@ -119,221 +62,77 @@ PORT=3000
 
 MONGO_URI=mongodb+srv://kullanici:parola@cluster.example.mongodb.net
 DB_NAME=youtube_whatsapp_bot
-CONFIG_KEY=user23
+CONFIG_KEY=benzersiz_bot_anahtari
 
 YOUTUBE_API_KEY=your_youtube_api_key_here
-YOUTUBE_CHANNEL_ID=UCxxxxxxxxxxxxxxxxxxxxxx
+YOUTUBE_DAILY_QUOTA_LIMIT=1000
 
 PING_URL=
 ```
 
-`CONFIG_KEY` yalnızca harf, rakam, tire ve alt çizgi içerebilir; uzunluğu en fazla 64 karakterdir.
+Uygulamayı başlatın:
 
-> [!WARNING]
-> Gerçek `.env` dosyanızı, MongoDB bağlantı adresinizi veya API anahtarınızı GitHub'a yüklemeyin. Projedeki `.gitignore`, `.env` dosyasını sürüm kontrolü dışında bırakır.
-
-## YouTube API yapılandırması
-
-1. [Google Cloud Console](https://console.cloud.google.com/) üzerinden bir proje oluşturun veya mevcut projenizi seçin.
-2. **YouTube Data API v3** hizmetini etkinleştirin.
-3. Bir API anahtarı oluşturun.
-4. Anahtarı `YOUTUBE_API_KEY` olarak tanımlayın.
-5. Mümkünse anahtarı yalnızca YouTube Data API v3 ile sınırlandırın.
-
-Uygulama kanal bilgilerini çözümlemek için `channels.list`, son yüklemeleri almak için `playlistItems.list` çağrılarını kullanır. Kontrol her dakika ve yalnızca panelde belirlenen saat aralığında yapılır.
-
-## Yönetim paneli
-
-Paneldeki kurulum sırası şöyledir:
-
-1. **WhatsApp bağlantısı:** QR kod üretin ve bağlı cihaz olarak okutun.
-2. **Hedef grup:** Bağlı WhatsApp hesabındaki gruplardan birini seçin.
-3. **Kontrol ve gönderim:** Başlangıç/bitiş saatlerini ve anket veya mesaj biçimini seçin.
-4. **YouTube kanalı:** Kanal URL'si, `@handle` veya kanal kimliği girin.
-5. **Test gönderimi:** Seçilen biçimde test gönderimi yapın.
-6. **Otomasyon durumu:** Hedef grup, kontrol planı ve son kontrol zamanını izleyin.
-7. **Son video olayları:** Kuyruk ve teslimat durumlarını görüntüleyin.
-
-Gece yarısını aşan saat aralıkları desteklenir. Örneğin `22:00–03:00`, aynı gün 22.00'den gece yarısına ve ertesi gün 03.59'a kadar aktif kabul edilir.
-
-## Gönderim biçimleri
-
-Yeni bir video tespit edildiğinde gönderilen WhatsApp anketi:
-
-- **Başlık:** YouTube video bağlantısı
-- **Seçenekler:** `İzledim`, `İzlemedim`
-- **Seçilebilir seçenek sayısı:** 1
-
-Mesaj biçimi seçildiğinde video başlığı ve bağlantısı şu şekilde gönderilir:
-
-```text
-Hayat Değiştiren İnce Düşünce
-https://youtube.com/shorts/IhQuNsLao-k
+```bash
+npm start
 ```
 
-## Teslimat güvenilirliği
+Ardından `http://localhost:3000` adresini açın.
 
-Yeni videolar `video_events` koleksiyonunda kuyruğa alınır. Her kayıt, `CONFIG_KEY + channelId + videoId` birleşimiyle benzersizdir.
+## Ortam değişkenleri
 
-Gönderim başarısız olursa olay silinmez. Uygulama aşağıdaki aralıklarla tekrar dener:
+| Değişken | Zorunlu | Açıklama |
+|---|:---:|---|
+| `MONGO_URI` | Evet | MongoDB bağlantı adresi |
+| `DB_NAME` | Evet | Kullanılacak veritabanı adı |
+| `CONFIG_KEY` | Evet | Bu bot kurulumunu veritabanındaki diğer kurulumlardan ayıran anahtar |
+| `YOUTUBE_API_KEY` | Evet | YouTube Data API v3 anahtarı |
+| `YOUTUBE_DAILY_QUOTA_LIMIT` | Hayır | Panelde gösterilecek tahmini günlük sınır; varsayılan `1000` |
+| `PORT` | Hayır | HTTP portu; varsayılan `3000` |
+| `NODE_ENV` | Hayır | Üretimde `production` kullanılabilir |
+| `PING_URL` | Hayır | İki dakikada bir çağrılacak sağlık kontrolü adresi |
+| `AUTH_COLLECTION` | Hayır | Eski Baileys oturum koleksiyonundan geçiş için kaynak koleksiyon |
 
-```text
-1 dakika → 5 dakika → 20 dakika → 60 dakika → 180 dakika
-```
+`CONFIG_KEY` en fazla 64 karakter olabilir ve yalnızca harf, rakam, tire veya alt çizgi içerebilir. `.env` dosyasını Git'e eklemeyin.
 
-Uygulama çalışırken kuyruk yaklaşık 15 saniyede bir işlenir. Beş dakikadan uzun süredir `sending` durumunda kalan kesintiye uğramış kayıtlar yeniden `pending` durumuna alınır.
+## İlk yönetici girişi
 
-### Olay durumları
+Site varsayılan olarak görüntüleme modunda açılır. İlk kurulumda:
 
-| Durum | Açıklama |
-|---|---|
-| `ignored` | Kanal seçilirken başlangıç kaydı olarak alınan eski video |
-| `pending` | Gönderim kuyruğunda bekliyor |
-| `sending` | WhatsApp'a gönderiliyor |
-| `sent` | Başarıyla gönderildi |
-| `failed` | Gönderilemedi; yeniden deneme zamanı bekleniyor |
-| `cancelled` | WhatsApp bağlantısı ve ayarlar sıfırlanırken iptal edildi |
+1. **Düzenleme moduna geç** düğmesine basın.
+2. `.env` dosyasındaki `CONFIG_KEY` değerini girin.
+3. En az 6 karakterli bir yönetici şifresi oluşturun.
 
-## MongoDB koleksiyonları
+Şifre MongoDB'de düz metin olarak saklanmaz. Yönetici oturumu cihazda 30 gün geçerlidir. **Görüntüleme moduna geç** oturumu korur; **Çıkış** düğmesi oturumu tamamen kapatır.
 
-| Koleksiyon | Amaç |
-|---|---|
-| `app_settings` | Kanal, hedef grup, kontrol planı ve son kontrol bilgileri |
-| `video_events` | Video olayları, kuyruk durumu ve gönderim geçmişi |
-| `baileys_auth_<CONFIG_KEY>` | WhatsApp oturum bilgileri ve şifreleme anahtarları |
+## YouTube API kullanımı
 
-Ayarlar ve video olayları `CONFIG_KEY` ile ayrılır. Bu sayede aynı MongoDB veritabanı birden fazla bot kurulumu tarafından kullanılabilir.
+Bot, her etkin kanal için çalışma aralığında dakikada bir `playlistItems.list` isteği yapar. Panel, seçilen zaman aralıklarına göre günlük tahmini kullanımı hesaplar.
 
-## Render üzerinde yayınlama
-
-Render'da **Static Site** yerine **Web Service** oluşturun.
-
-| Ayar | Değer |
-|---|---|
-| Branch | `main` |
-| Runtime | `Node` |
-| Root Directory | Boş bırakın |
-| Build Command | `npm install` |
-| Start Command | `npm start` |
-| Health Check Path | `/api/health` |
-
-Render servisinin **Environment** bölümünde en az şu değerleri tanımlayın:
-
-```env
-NODE_ENV=production
-MONGO_URI=...
-DB_NAME=youtube_whatsapp_bot
-CONFIG_KEY=user23
-YOUTUBE_API_KEY=...
-```
-
-`PORT` değişkenini Render'da elle tanımlamanız gerekmez. Render bu değeri çalışma anında sağlar.
-
-İsteğe bağlı sağlık kontrolü:
-
-```env
-PING_URL=https://servis-adiniz.onrender.com/api/health
-```
-
-WhatsApp oturumu MongoDB'de tutulduğu için normal yeniden başlatmalarda yerel diske bağlı değildir. Oturumu panelden sıfırlarsanız ilgili `baileys_auth_<CONFIG_KEY>` koleksiyonundaki oturum verileri silinir ve yeni QR kod üretilir.
-
-## API özeti
-
-| Metot | Endpoint | Açıklama |
-|---|---|---|
-| `GET` | `/api/health` | Uygulama sağlık ve çalışma süresi bilgisi |
-| `GET` | `/api/status` | WhatsApp durumu ve uygulama ayarları |
-| `POST` | `/api/whatsapp/start` | WhatsApp bağlantısını başlatır |
-| `POST` | `/api/whatsapp/logout` | Oturumu siler ve yeni bağlantı sürecini başlatır |
-| `GET` | `/api/groups` | Bağlı hesabın WhatsApp gruplarını listeler |
-| `POST` | `/api/youtube/resolve` | Kanal girdisini doğrular ve kanal bilgisini çözümler |
-| `PUT` | `/api/settings/channel` | İzlenecek kanalı kaydeder |
-| `PUT` | `/api/settings/group` | Hedef WhatsApp grubunu kaydeder |
-| `PUT` | `/api/settings/monitor` | Kontrol saatlerini günceller |
-| `PUT` | `/api/settings/delivery` | Anket veya mesaj gönderim biçimini kaydeder |
-| `POST` | `/api/test-delivery` | Seçili biçimde test gönderimi yapar |
-| `GET` | `/api/events?page=0` | Sayfalanmış video olaylarını listeler |
-
-## Proje yapısı
-
-```text
-.
-├── public/
-│   ├── app.js              # Yönetim paneli davranışları
-│   ├── index.html          # Yönetim paneli
-│   └── styles.css          # Arayüz stilleri
-├── src/
-│   ├── config.js           # Ortam değişkeni doğrulama
-│   ├── db.js               # MongoDB bağlantısı ve ayarlar
-│   ├── delivery.js         # Teslimat kuyruğu ve yeniden deneme
-│   ├── server.js           # Express sunucusu ve zamanlanmış görevler
-│   ├── whatsapp.js         # Baileys bağlantısı ve anket gönderimi
-│   ├── youtube-monitor.js  # Kanal izleme ve yeni video tespiti
-│   └── youtube.js          # YouTube Data API istemcisi
-├── test/
-│   └── youtube.test.js     # Kanal girdisi ve zamanlama testleri
-├── .env.example
-├── package.json
-└── README.md
-```
+Örnek: `08:00–20:59` aralığı günlük yaklaşık 780 istektir. Gösterilen sınır bilgilendirme amaçlıdır; aşılması ayarların kaydedilmesini engellemez.
 
 ## Komutlar
 
-| Komut | Açıklama |
-|---|---|
-| `npm start` | Uygulamayı başlatır |
-| `npm run dev` | Node.js watch modunda geliştirme sunucusunu başlatır |
-| `npm test` | Testleri çalıştırır |
-
-## Testler
-
 ```bash
-npm test
+npm start       # Uygulamayı başlatır
+npm run dev     # Dosya değişikliklerini izleyerek başlatır
+npm test        # Testleri çalıştırır
 ```
-
-Test paketi şu davranışları doğrular:
-
-- YouTube `@handle` URL'lerinin ayrıştırılması
-- Kanal kimliklerinin ayrıştırılması
-- `/channel/UC...` URL'lerinin ayrıştırılması
-- Kontrol sıklığının bir dakika olması
-- Türkiye saatine göre kontrol penceresi
-- Gece yarısını aşan saat aralıkları
-
-## Güvenlik notları
-
-- `.env` dosyasını sürüm kontrolüne eklemeyin.
-- MongoDB kullanıcısına yalnızca gereken veritabanı izinlerini verin.
-- YouTube API anahtarını mümkün olduğunca API ve kullanım alanı bazında sınırlandırın.
-- Yönetim panelini herkese açık bir adreste çalıştırıyorsanız erişim kontrolünü ters proxy veya barındırma katmanında sağlayın.
-- WhatsApp oturum koleksiyonu hassas kimlik doğrulama verileri içerir; veritabanı erişimini sınırlandırın.
 
 ## Sorun giderme
 
-### QR kod görünmüyor
+- **QR kod görünmüyor:** Düzenleme moduna geçtiğinizden ve MongoDB bağlantısının hazır olduğundan emin olun.
+- **Gruplar yüklenmiyor:** WhatsApp bağlantısını ve hesabın gruplara üye olduğunu kontrol edin.
+- **Kanal bulunamıyor:** YouTube Data API v3 hizmetini ve `YOUTUBE_API_KEY` değerini doğrulayın.
+- **Video gönderilmiyor:** Kanalın etkinliğini, kontrol aralığını, WhatsApp bağlantısını ve son video olaylarını kontrol edin.
 
-- `MONGO_URI`, `DB_NAME` ve `CONFIG_KEY` değerlerini kontrol edin.
-- Uygulama loglarında MongoDB bağlantı hatası olup olmadığına bakın.
-- Panelde **WhatsApp bağlantısını başlat** düğmesine basın.
+Bu sürüm temiz kurulum için hazırlanmıştır. Önceki tek-kanal veri modelinden otomatik ve eksiksiz geçiş garanti edilmez.
 
-### Grup listesi yüklenmiyor
+## Güvenlik
 
-- WhatsApp durumunun **Bağlı** olduğundan emin olun.
-- Bağlanan hesabın en az bir WhatsApp grubunda bulunduğunu kontrol edin.
-- Oturum sorunluysa panelden bağlantıyı sıfırlayıp QR kodu yeniden okutun.
-
-### Kanal bulunamıyor
-
-- `YOUTUBE_API_KEY` değerini ve YouTube Data API v3 hizmetinin etkin olduğunu doğrulayın.
-- Kanalın `@handle`, `/channel/UC...` adresini veya kanal kimliğini kullanın.
-- Google Cloud Console'daki API anahtarı kısıtlamalarını kontrol edin.
-
-### Yeni video gönderilmiyor
-
-- Geçerli saatin paneldeki kontrol aralığında olduğunu doğrulayın.
-- Hedef grubun seçili ve WhatsApp bağlantısının açık olduğunu kontrol edin.
-- Paneldeki **Son video olayları** tablosunda olay ve hata durumunu inceleyin.
-- YouTube API kotasının tükenmediğini kontrol edin.
+- MongoDB ve YouTube API bilgilerini yalnızca ortam değişkenlerinde saklayın.
+- MongoDB kullanıcısına yalnızca gerekli veritabanı izinlerini verin.
+- YouTube API anahtarını yalnızca YouTube Data API v3 ile sınırlandırın.
+- WhatsApp oturum koleksiyonları hassas veri içerdiği için veritabanını herkese açmayın.
 
 ## Geliştirici
 
@@ -350,4 +149,4 @@ Test paketi şu davranışları doğrular:
 
 ## Lisans
 
-Bu proje [APACHE Lisansı](LICENSE.txt) ile lisanslanmıştır.
+Bu proje [Apache License 2.0](LICENSE.txt) ile lisanslanmıştır.

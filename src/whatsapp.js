@@ -1,6 +1,6 @@
 const pino = require('pino');
 const QRCode = require('qrcode');
-const { db, getSettings } = require('./db');
+const { db } = require('./db');
 const { getConfigKey } = require('./config');
 
 let makeWASocket;
@@ -180,8 +180,7 @@ async function groups() {
 
 async function sendVideoPoll({ groupId, videoUrl }) {
   if (!socket || state.status !== 'READY') throw new Error('WhatsApp istemcisi hazır değil.');
-  const settings = await getSettings();
-  const target = groupId || settings?.targetGroupId;
+  const target = groupId;
   if (!target) throw new Error('Hedef WhatsApp grubu seçilmedi.');
   const sent = await socket.sendMessage(target, {
     poll: { name: videoUrl, values: ['İzledim', 'İzlemedim'], selectableCount: 1 }
@@ -199,8 +198,7 @@ function formatVideoMessage({ title, videoUrl }) {
 
 async function sendVideoMessage({ groupId, title, videoUrl }) {
   if (!socket || state.status !== 'READY') throw new Error('WhatsApp istemcisi hazır değil.');
-  const settings = await getSettings();
-  const target = groupId || settings?.targetGroupId;
+  const target = groupId;
   if (!target) throw new Error('Hedef WhatsApp grubu seçilmedi.');
   const sent = await socket.sendMessage(target, { text: formatVideoMessage({ title, videoUrl }) });
   return { messageId: sent?.key?.id || null, groupId: target };
